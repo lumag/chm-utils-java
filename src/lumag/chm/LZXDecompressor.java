@@ -458,34 +458,32 @@ public class LZXDecompressor {
 					R0 = matchOffset;
 				} else {
 					if (blockType == LZX_BLOCK_VERBATIM) {
-						long verbatimBits = 0;
-						if (matchOffset != 3) {
+						long verbatimBits;
+						if (matchOffset == 3) {
+							verbatimBits = 0;
+						} else {
 							byte extra = EXTRA_BITS[matchOffset];
 							verbatimBits = getBits(extra);
-							matchOffset = (int) (POSITION_BASE[matchOffset] - 2 + verbatimBits);
-						} else {
-							matchOffset = 1;
 						}
-						// FIXME: check if this is correct
-						// matchOffset = (int) (POSITION_BASE[matchOffset] - 2 + verbatimBits);
+						matchOffset = (int) (POSITION_BASE[matchOffset] - 2 + verbatimBits);
 					} else {// ALIGNED
 						byte extra = EXTRA_BITS[matchOffset];
-						long verbatimBits = 0;
-						long alignedBits = 0;
+						long verbatimBits;
+						long alignedBits;
 						if (extra > 3) {
 							verbatimBits = getBits(extra - 3) << 3;
 							alignedBits = readHuffman(alignedTreeSymbols, alignedTreeLengths, ALIGNED_NUM_BITS);
 						} else if (extra == 3) {
+							verbatimBits = 0;
 							alignedBits = readHuffman(alignedTreeSymbols, alignedTreeLengths, ALIGNED_NUM_BITS);
 						} else if (extra > 0) {
 							verbatimBits = getBits(extra);
+							alignedBits = 0;
 						} else { // extra == 0
-							matchOffset = 1;
+							verbatimBits = 0;
+							alignedBits = 0;
 						}
-						// FIXME: check if this is correct
-						if (extra != 0) {
-							matchOffset = (int) (POSITION_BASE[matchOffset] - 2 + verbatimBits + alignedBits);
-						}
+						matchOffset = (int) (POSITION_BASE[matchOffset] - 2 + verbatimBits + alignedBits);
 					}
 
 					R2 = R1;
