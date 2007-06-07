@@ -74,8 +74,8 @@ public class CHMReader {
 			try {
 				CHMReader reader = new CHMReader(name);
 				reader.read();
-				reader.decodeContent("/tmp/test");
-//				reader.dump("test");
+				reader.decodeContent("test/decoded_content_file");
+				reader.dump("test");
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -597,8 +597,11 @@ public class CHMReader {
 			}
 //			compBlockLen = uncompBlockLen + 6144;
 			System.out.format("Decode %d %04x %04x%n", i, compBlockLen, uncompBlockLen);
-			d.decode(input, compBlockLen, output, uncompBlockLen);
-			
+			byte[] inp = new byte[compBlockLen];
+			input.read(inp);
+			byte[] out = d.decode(inp, uncompBlockLen);
+			output.write(out);
+			output.flush();
 		}
 		output.close();
 	}

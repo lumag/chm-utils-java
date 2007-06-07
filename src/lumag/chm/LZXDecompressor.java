@@ -1,13 +1,6 @@
 package lumag.chm;
 
-import java.io.BufferedOutputStream;
-import java.io.DataInput;
-import java.io.EOFException;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.RandomAccessFile;
+import java.util.Arrays;
 
 public class LZXDecompressor {
 	private static final byte[] EXTRA_BITS = {
@@ -57,10 +50,9 @@ public class LZXDecompressor {
 	private long bitbuffer;
 	private int bblen;
 
-	private DataInput input;
-	private OutputStream output;
+	private byte[] input;
+	private int inPos;
 
-	private long size;
 	private int windowPosition;
 
 	private boolean intel_started;
@@ -77,7 +69,7 @@ public class LZXDecompressor {
 	private byte[] alignedTreeLengths;
 	private short[] alignedTreeSymbols;
 
-	LZXDecompressor(int wnd) throws IOException {
+	LZXDecompressor(int wnd) {
 		if (wnd < (1 << 15) || wnd > (1 << 21)) {
 			throw new IllegalArgumentException("Bad window size");
 		}
@@ -108,8 +100,12 @@ public class LZXDecompressor {
 		return 0;
 	}
 
-	private long getBits(int n) throws IOException {
+	private long getBits(int n) {
 		ensureBits(n);
+		
+		if (inPos > input.length) {
+			throw new RuntimeException("!!");
+		}
 
 		long res = peekBits(n);
 
@@ -118,7 +114,7 @@ public class LZXDecompressor {
 		return res;
 	}
 
-	private void ensureBits(int n) throws IOException {
+	private void ensureBits(int n) {
 		if (n > LONG_BITS) {
 			throw new IllegalArgumentException();
 		}
@@ -126,11 +122,16 @@ public class LZXDecompressor {
 			throw new InternalError("Bitbuffer overflow: " + n + " " + bblen);
 		}
 		while (bblen < n) {
-			byte[] temp = new byte[2];
-			input.readFully(temp);
-			bitbuffer |= ((long) ( ((temp[1] & 0xff) << 8) | temp[0] & 0xff)) << (LONG_BITS - 16 - bblen);
+			// allow small overread with zeroes. Handled in readBits
+			if (inPos < input.length) {
+				byte[] temp = new byte[2];
+				temp[0] = input[inPos];
+				temp[1] = input[inPos+1];
+				bitbuffer |= ((long) ( ((temp[1] & 0xff) << 8) | temp[0] & 0xff)) << (LONG_BITS - 16 - bblen);
+			}
+
+			inPos += 2;
 			bblen += 16;
-			size -= 2;
 		}
 	}
 
@@ -143,7 +144,7 @@ public class LZXDecompressor {
 		return bitbuffer >>> (LONG_BITS - n);
 	}
 
-	private short readHuffman(short[] symbols, byte[] lengths, int numBits) throws IOException, FileFormatException {
+	private short readHuffman(short[] symbols, byte[] lengths, int numBits) throws FileFormatException {
 		ensureBits(16);
 		short res = symbols[(int) peekBits(numBits)];
 		if (res > lengths.length) {
@@ -162,7 +163,7 @@ public class LZXDecompressor {
 		return res;
 	}
 
-	private void readLengths(byte[] lengths, int first, int last) throws IOException, FileFormatException {
+	private void readLengths(byte[] lengths, int first, int last) throws FileFormatException {
 		byte[] preTreeLengths = new byte[PRETREE_NUM_ELEMENTS];
 		for (int i = 0; i < PRETREE_NUM_ELEMENTS; i ++) {
 			preTreeLengths[i] = (byte) getBits(4);
@@ -274,13 +275,13 @@ public class LZXDecompressor {
 		return result;
 	}
 
-	void reset(boolean clearBuffer) throws IOException {
+	void reset(boolean clearBuffer) {
 		R0 = R1 = R2 = 1;
 		if (clearBuffer) {
 			bitbuffer = 0;
 			bblen = 0;
 		} else {
-			getBits(bblen % 16);
+			removeBits(bblen % 16);
 		}
 		windowPosition = 0;
 
@@ -296,10 +297,9 @@ public class LZXDecompressor {
 
 	}
 
-	void decode(DataInput in, long siz, OutputStream out, int outLength) throws IOException, FileFormatException {
+	byte[] decode(byte[] in, int outLength) throws FileFormatException {
 		input = in;
-		output = out;
-		size = siz;
+		inPos = 0;
 
 		getBits(bblen % 16);
 		if (!gotHeader) {
@@ -317,12 +317,12 @@ public class LZXDecompressor {
 		int toGo = outLength;
 
 		while (toGo > 0) {
-//			System.out.format("Left: %04x (%04x)%n", size, toGo);
+//			System.out.format("Left: %04x (%04x)%n", input.length - inPos, toGo);
 			if (blockRemaining == 0) {
 				if (blockType == LZX_BLOCK_UNCOMPRESSED) {
 					// restore bitstream
 					if (blockLength % 2 == 1) {
-						input.readByte();
+						inPos ++;
 					}
 					bblen = 0;
 					bitbuffer = 0;
@@ -384,12 +384,17 @@ public class LZXDecompressor {
 			}
 
 		}
-		output.write(window, (windowPosition == 0? windowSize : windowPosition) - outLength, outLength);
 
-		output.flush();
+		if (inPos > input.length) {
+			bblen -= (inPos - input.length) * 8;
+		}
+		
+		int to = (windowPosition == 0? windowSize : windowPosition);
+
+		return Arrays.copyOfRange(window, to - outLength, to);
 	}
 	
-	private void readAlignedBlockHeader() throws IOException, FileFormatException {
+	private void readAlignedBlockHeader() throws FileFormatException {
 		for (int i = 0; i < ALIGNED_NUM_ELEMENTS; i++) {
 			alignedTreeLengths[i] = (byte) getBits(3);
 		}
@@ -399,7 +404,7 @@ public class LZXDecompressor {
 		readVerbatimBlockHeader();
 	}
 
-	private void readVerbatimBlockHeader() throws IOException, FileFormatException {
+	private void readVerbatimBlockHeader() throws FileFormatException {
 		readLengths(mainTreeLengths, 0, 256);
 		readLengths(mainTreeLengths, 256, mainTreeElements);
 		mainTreeSymbols = buildTree(mainTreeLengths, MAINTREE_NUM_BITS);
@@ -412,7 +417,7 @@ public class LZXDecompressor {
 		lengthTreeSymbols = buildTree(lengthTreeLengths, LENGTHTREE_NUM_BITS);
 	}
 
-	private void readUncompressedBlockHeader() throws IOException {
+	private void readUncompressedBlockHeader() {
 		if (bblen > 16) {
 			// FIXME
 			throw new UnsupportedOperationException("Can't handle uncompressed block with too many chars read");
@@ -427,7 +432,7 @@ public class LZXDecompressor {
 		intel_started = true;
 	}
 
-	private void readVerbatimAlignedBlock(long length) throws IOException, FileFormatException {
+	private void readVerbatimAlignedBlock(long length) throws FileFormatException {
 		long remaining = length;
 
 		while (remaining > 0) {
@@ -498,63 +503,48 @@ public class LZXDecompressor {
 				if (windowPosition > windowSize) {
 					throw new FileFormatException("Illegal data");
 				}
-				while ((src < 0) && (matchLength > 0)) {
-					window[dest] = window[windowSize + src];
-					src ++;
-					dest ++;
-					matchLength --;
+
+				if (src < 0 && matchLength > 0) {
+					int tempLen = (matchLength + src > 0)? -src : matchLength;
+					byteArrayCopy(window, dest, window, windowSize + src, tempLen);
+					src += tempLen;
+					dest += tempLen;
+					matchLength -= tempLen;
 				}
-				while (matchLength > 0) {
-					window[dest] = window[src];
-					src ++;
-					dest ++;
-					matchLength --;
-				}
+
+				byteArrayCopy(window, dest, window, src, matchLength);
+				src += matchLength;
+				dest += matchLength;
+
 			}
 		}
 	}
 
-	private void readUncompressedBlock(long length) throws FileFormatException, IOException {
+	private void readUncompressedBlock(long length) throws FileFormatException {
 		if (windowPosition + length > windowSize) {
 			throw new FileFormatException("Illegal data");
 		}
 
-		input.readFully(window, windowPosition, (int) length);
+		byteArrayCopy(window, windowPosition, input, inPos, (int) length);
+
 		windowPosition += length;
-		size -= length;
+		inPos += length;
 	}
 
-	private int readQword() throws IOException {
+	private int readQword() {
 		int ret = 0;
 		for (int i = 0; i < 4; i++) {
-			ret |= (input.readUnsignedByte()) << (i * 8);   
-			size --;
+			ret |= (input[inPos] & 0xff) << (i * 8);   
+			inPos ++;
 		}
 		return ret;
 	}
 
-	public static void main(String[] args) throws Exception {
-		LZXDecompressor d = new LZXDecompressor(1 << Integer.parseInt(args[0]));
-		File in = new File(args[1]);
-		RandomAccessFile input = new RandomAccessFile(in, "r");
-		OutputStream output = new BufferedOutputStream(new FileOutputStream(args[2]));
-		
-		int reset = Integer.parseInt(args[3]);
-
-		int i = 0;
-		try {
-			while (true) {
-				d.decode(input, in.length(), output, 0x8000);
-				i++;
-				if (i % reset == 0) {
-					i = 0;
-					d.reset(false);
-				}
-			}
-		} catch (EOFException e) {
-			input.close();
-			output.close();
+	private void byteArrayCopy(byte[] out, int outOffset,
+							   byte[] in,  int inOffset,
+							   int len) {
+		for (int i = 0; i < len; i++) {
+			out[outOffset + i] = in[inOffset + i];
 		}
 	}
-
 }
