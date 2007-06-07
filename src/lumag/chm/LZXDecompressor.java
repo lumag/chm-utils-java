@@ -42,7 +42,7 @@ public class LZXDecompressor {
 	private final int positionSlots;
 	private final int mainTreeElements;
 
-	private byte[] window;
+	private final byte[] window;
 	private int R0, R1, R2; // LRU offsets
 
 	private boolean gotHeader;
@@ -101,6 +101,10 @@ public class LZXDecompressor {
 	}
 
 	private long getBits(int n) throws FileFormatException {
+		if (n == 0) {
+			return 0;
+		}
+
 		ensureBits(n);
 		
 		if (inPos > input.length) {
@@ -124,10 +128,7 @@ public class LZXDecompressor {
 		while (bblen < n) {
 			// allow small overread with zeroes. Handled in readBits
 			if (inPos < input.length) {
-				byte[] temp = new byte[2];
-				temp[0] = input[inPos];
-				temp[1] = input[inPos+1];
-				bitbuffer |= ((long) ( ((temp[1] & 0xff) << 8) | temp[0] & 0xff)) << (LONG_BITS - 16 - bblen);
+				bitbuffer |= ((long) ( ((input[inPos+1] & 0xff) << 8) | input[inPos] & 0xff)) << (LONG_BITS - 16 - bblen);
 			}
 
 			inPos += 2;
