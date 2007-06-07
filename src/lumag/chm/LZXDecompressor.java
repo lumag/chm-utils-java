@@ -2,6 +2,8 @@ package lumag.chm;
 
 import java.util.Arrays;
 
+import lumag.util.MemoryUtils;
+
 public class LZXDecompressor {
 	private static final byte[] EXTRA_BITS = {
 		0,  0,  0,  0,  1,  1,  2,  2,  3,  3,  4,  4,  5,  5,  6,  6,
@@ -29,7 +31,7 @@ public class LZXDecompressor {
 	private static final int LENGTHTREE_NUM_BITS = 12;
 	private static final int LENGTHREE_NUM_ELEMENTS = NUM_SECONDARY_LENGTHS;
 
-	private static final int LZX_BLOCK_INVALID = 0;
+	private static final int LZX_BLOCK_INVALID = -1;
 	private static final int LZX_BLOCK_VERBATIM = 1;
 	private static final int LZX_BLOCK_ALIGNED = 2;
 	private static final int LZX_BLOCK_UNCOMPRESSED = 3;
@@ -87,7 +89,7 @@ public class LZXDecompressor {
 
 		mainTreeElements = MAX_CHARS + (positionSlots << 3);
 
-		reset(true);
+		reset();
 	}
 
 	private int log2(int value) {
@@ -276,14 +278,10 @@ public class LZXDecompressor {
 		return result;
 	}
 
-	void reset(boolean clearBuffer) {
+	void reset() {
 		R0 = R1 = R2 = 1;
-		if (clearBuffer) {
-			bitbuffer = 0;
-			bblen = 0;
-		} else {
-			removeBits(bblen % 16);
-		}
+		bitbuffer = 0;
+		bblen = 0;
 		windowPosition = 0;
 
 		mainTreeLengths = new byte[mainTreeElements];
@@ -507,13 +505,13 @@ public class LZXDecompressor {
 
 				if (src < 0 && matchLength > 0) {
 					int tempLen = (matchLength + src > 0)? -src : matchLength;
-					byteArrayCopy(window, dest, window, windowSize + src, tempLen);
+					MemoryUtils.byteArrayCopy(window, dest, window, windowSize + src, tempLen);
 					src += tempLen;
 					dest += tempLen;
 					matchLength -= tempLen;
 				}
 
-				byteArrayCopy(window, dest, window, src, matchLength);
+				MemoryUtils.byteArrayCopy(window, dest, window, src, matchLength);
 				src += matchLength;
 				dest += matchLength;
 
@@ -526,7 +524,7 @@ public class LZXDecompressor {
 			throw new FileFormatException("Illegal data");
 		}
 
-		byteArrayCopy(window, windowPosition, input, inPos, (int) length);
+		MemoryUtils.byteArrayCopy(window, windowPosition, input, inPos, (int) length);
 
 		windowPosition += length;
 		inPos += length;
@@ -539,13 +537,5 @@ public class LZXDecompressor {
 			inPos ++;
 		}
 		return ret;
-	}
-
-	private void byteArrayCopy(byte[] out, int outOffset,
-							   byte[] in,  int inOffset,
-							   int len) {
-		for (int i = 0; i < len; i++) {
-			out[outOffset + i] = in[inOffset + i];
-		}
 	}
 }

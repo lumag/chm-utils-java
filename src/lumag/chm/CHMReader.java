@@ -2,6 +2,7 @@ package lumag.chm;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -9,6 +10,9 @@ import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import lumag.util.FixedSizeCache;
+import lumag.util.MemoryUtils;
 
 public class CHMReader {
 	private static final String FILE_RESET_TABLE = "::DataSpace/Storage/MSCompressed/Transform/{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}/InstanceData/ResetTable";
@@ -43,7 +47,10 @@ public class CHMReader {
 				" length " + length; 
 		}
 	}
-
+	
+	private FixedSizeCache<Integer, byte[]> blockCache = new FixedSizeCache<Integer, byte[]>();
+	private int lastBlock = -1;
+	
 	private RandomAccessFile input;
 
 	private long dataOffset;
@@ -63,6 +70,8 @@ public class CHMReader {
 	private int windowSize;
 	private long uncompressedLength;
 	private long compressedLength;
+	private LZXDecompressor decompressor;
+	private long contentOffset;
 
 	public CHMReader(String name) throws IOException {
 		System.out.println("CHM file " + name);
@@ -74,7 +83,7 @@ public class CHMReader {
 			try {
 				CHMReader reader = new CHMReader(name);
 				reader.read();
-				reader.decodeContent("test/decoded_content_file");
+//				reader.decodeContent("test/decoded_content_file");
 				reader.dump("test");
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -83,7 +92,7 @@ public class CHMReader {
 	}
 	
 	@SuppressWarnings("unused")
-	private void dump(String path) throws IOException {
+	private void dump(String path) throws IOException, FileFormatException {
 		File parent = new File(path);
 		parent.mkdirs();
 		for (ListingEntry entry: listing.values()) {
@@ -114,6 +123,11 @@ public class CHMReader {
 					output.write(buf, 0, read);
 					len -= read;
 				}
+				output.close();
+			} else {
+				byte[] data = getFile(entry.name);
+				OutputStream output = new BufferedOutputStream(new FileOutputStream(f));
+				output.write(data);
 				output.close();
 			}
 		}
@@ -281,6 +295,9 @@ public class CHMReader {
 		
 		readResetTable();
 		readControlData();
+		
+		ListingEntry entry = listing.get(FILE_CONTENT);
+		contentOffset = dataOffset + entry.offset;
 	}
 
 	private void readFormatHeader() throws IOException, FileFormatException {
@@ -567,43 +584,112 @@ public class CHMReader {
 			windowSize *= 0x8000;
 		}
 		
+		decompressor = new LZXDecompressor(windowSize);
+
 		resetBlockInterval = resetInterval / (windowSize / 2) * cacheSize;
 		System.out.println("ResetBlockInterval: " + resetBlockInterval);
+	}
+
+	public byte[] getFile(String name) throws IOException, FileFormatException {
+		ListingEntry entry = listing.get(name);
+		
+		if (entry == null) {
+			throw new FileNotFoundException();
+		}
+		
+		
+		int startBlock = (int) (entry.offset / 0x8000);
+		int startOffset = (int) (entry.offset % 0x8000);
+		int endBlock = (int) ((entry.offset + entry.length - 1) / 0x8000);
+		
+		final int length = (int) entry.length;
+		
+		byte[] block = getBlock(startBlock);
+		if (startBlock == endBlock) {
+			return Arrays.copyOfRange(block, startOffset, startOffset + length);
+		}
+
+		byte[] data = new byte[length];
+		int filled = block.length - startOffset;
+		MemoryUtils.byteArrayCopy(data, 0, block, startOffset, filled);
+
+		
+		for (int i = startBlock+1; i < endBlock; i++) {
+			block = getBlock(i);
+			MemoryUtils.byteArrayCopy(data, filled, block, 0, block.length);
+			filled += block.length;
+		}
+		
+		block = getBlock(endBlock);
+		MemoryUtils.byteArrayCopy(data, filled, block, 0, length - filled);
+		
+		return data;
+	}
+
+	private byte[] getBlock(int blockNo) throws IOException, FileFormatException {
+		byte[] data = blockCache.get(blockNo);
+		
+		if (data != null) {
+			return data;
+		}
+		
+		int startBlock = (blockNo / resetBlockInterval) * resetBlockInterval;
+		
+		if (lastBlock >= startBlock && lastBlock <= blockNo - 1) {
+			startBlock = lastBlock + 1;
+		}
+		
+		for (int i = startBlock; i < blockNo; i++) {
+			System.out.println("Extra: " + i);
+			decodeBlock(i);
+		}
+
+		System.out.println("Decoding: " + blockNo);
+		return decodeBlock(blockNo);
 	}
 
 	@SuppressWarnings("unused")
 	private void decodeContent(String fname) throws IOException, FileFormatException {
 		ListingEntry entry = listing.get(FILE_CONTENT);
 		
-		input.seek(dataOffset + entry.offset);
+		input.seek(contentOffset);
 		OutputStream output = new BufferedOutputStream(new FileOutputStream(fname));
-		LZXDecompressor d = new LZXDecompressor(windowSize); 
-
-//		final long maxBlock = (uncompressedLength + 0x8000 - 1)/ 0x8000;
 		final long maxBlock = resets.length;
 		for (int i = 0; i < maxBlock ; i++) {
-			if (i % resetBlockInterval == 0) {
-				d.reset(false);
-			}
-
-			int compBlockLen;
-			int uncompBlockLen;
-			if (i != maxBlock-1) {
-				compBlockLen = (int) (resets[i+1] - resets[i]);
-				uncompBlockLen = 0x8000;
-			} else {
-				compBlockLen = (int) (compressedLength - resets[i]);
-				uncompBlockLen = (int) (uncompressedLength % 0x8000);
-			}
-//			compBlockLen = uncompBlockLen + 6144;
-			System.out.format("Decode %d %04x %04x%n", i, compBlockLen, uncompBlockLen);
-			byte[] inp = new byte[compBlockLen];
-			input.read(inp);
-			byte[] out = d.decode(inp, uncompBlockLen);
+			byte[] out = decodeBlock(i);
 			output.write(out);
 			output.flush();
 		}
 		output.close();
+	}
+
+	private byte[] decodeBlock(int blockNumber) throws IOException, FileFormatException {
+		if (blockNumber % resetBlockInterval == 0) {
+			System.out.println("Reset: " + blockNumber);
+			input.seek(contentOffset + resets[blockNumber]);
+			decompressor.reset();
+		} else if (lastBlock != -1 && lastBlock != blockNumber - 1) {
+			throw new IllegalStateException("Incorrect block decoding order: " + lastBlock + " -> " + blockNumber);
+		}
+
+		int compBlockLen;
+		int uncompBlockLen;
+		if (blockNumber != resets.length - 1) {
+			compBlockLen = (int) (resets[blockNumber+1] - resets[blockNumber]);
+			uncompBlockLen = 0x8000;
+		} else {
+			compBlockLen = (int) (compressedLength - resets[blockNumber]);
+			uncompBlockLen = (int) (uncompressedLength % 0x8000);
+		}
+		System.out.format("Decode %d %04x %04x%n", blockNumber, compBlockLen, uncompBlockLen);
+		byte[] inp = new byte[compBlockLen];
+		input.read(inp);
+
+		byte[] block =  decompressor.decode(inp, uncompBlockLen);
+
+		lastBlock = blockNumber;
+		blockCache.add(blockNumber, block);
+		return block;
 	}
 
 
