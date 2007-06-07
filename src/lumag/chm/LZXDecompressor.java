@@ -100,11 +100,11 @@ public class LZXDecompressor {
 		return 0;
 	}
 
-	private long getBits(int n) {
+	private long getBits(int n) throws FileFormatException {
 		ensureBits(n);
 		
 		if (inPos > input.length) {
-			throw new RuntimeException("!!");
+			throw new FileFormatException("Input buffer overrun");
 		}
 
 		long res = peekBits(n);
@@ -417,7 +417,7 @@ public class LZXDecompressor {
 		lengthTreeSymbols = buildTree(lengthTreeLengths, LENGTHTREE_NUM_BITS);
 	}
 
-	private void readUncompressedBlockHeader() {
+	private void readUncompressedBlockHeader() throws FileFormatException {
 		if (bblen > 16) {
 			// FIXME
 			throw new UnsupportedOperationException("Can't handle uncompressed block with too many chars read");
