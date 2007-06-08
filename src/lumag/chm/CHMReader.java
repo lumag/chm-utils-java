@@ -8,62 +8,24 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import lumag.util.FixedSizeCache;
 import lumag.util.MemoryUtils;
 
-public class CHMReader {
+public class CHMReader extends MSReader {
 	private static final String FILE_RESET_TABLE = "::DataSpace/Storage/MSCompressed/Transform/{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}/InstanceData/ResetTable";
-	private static final String FILE_NAME_LIST = "::DataSpace/NameList";
 	private static final String FILE_CONTROL_DATA = "::DataSpace/Storage/MSCompressed/ControlData";
 	private static final String FILE_CONTENT = "::DataSpace/Storage/MSCompressed/Content";
 
-	private static final byte[] FILE_HEADER = {'I', 'T', 'S', 'F'};
-	private static final byte[] INDEX_SECTION = {'I', 'T', 'S', 'P'};
-	private static final byte[] FILE_SECTION = {(byte) 0xfe, 0x01, 0x00, 0x00};
-	private static final byte[] PMGL_HEADER = {'P', 'M', 'G', 'L'};
-	private static final byte[] LZXC_HEADER = {'L', 'Z', 'X', 'C'};
-	
-	private class ListingEntry {
-		public final String name;
-		public final int section;
-		public final long offset;
-		public final long length;
-
-		public ListingEntry(final String name, final int section, final long offset, final long length) {
-			this.name = name;
-			this.section = section;
-			this.offset = offset;
-			this.length = length;
-		}
-		
-		@Override
-		public String toString() {
-			return "File '" + name + "'" +
-				" is at section " + section +
-				" offset " + offset +
-				" length " + length; 
-		}
-	}
+	private static final byte[] HEADER_INDEX_SECTION = {'I', 'T', 'S', 'P'};
+	private static final byte[] HEADER_PMGL = {'P', 'M', 'G', 'L'};
+	private static final byte[] HEADER_LZXC = {'L', 'Z', 'X', 'C'};
 	
 	private FixedSizeCache<Integer, byte[]> blockCache = new FixedSizeCache<Integer, byte[]>();
 	private int lastBlock = -1;
 	
-	private RandomAccessFile input;
-
-	private long dataOffset;
-	private long fileSize;
-	private long fileSectionOffset;
-	private long fileSectionLength;
-	private long indexSectionOffset;
-	private long indexSectionLength;
 	private int directoryBlockSize;
-	private int directoryChunks;
 	private long directoryOffset;
-	private Map<String, ListingEntry> listing = new LinkedHashMap<String, ListingEntry>();
-	private String[] sectionNames;
 	private long[] resets;
 	private int resetBlockInterval;
 	private int resetInterval;
@@ -72,18 +34,20 @@ public class CHMReader {
 	private long compressedLength;
 	private LZXDecompressor decompressor;
 	private long contentOffset;
+	
+	private RandomAccessFile inputFile;
 
-	public CHMReader(String name) throws IOException {
+	public CHMReader(String name) throws IOException, FileFormatException {
 		System.out.println("CHM file " + name);
-		input = new RandomAccessFile(name, "r");
+		inputFile = new RandomAccessFile(name, "r");
+		read(inputFile);
 	}
 
 	public static void main(String[] args) {
 		for (String name: args) {
 			try {
 				CHMReader reader = new CHMReader(name);
-				reader.read();
-//				reader.decodeContent("test/decoded_content_file");
+//				reader.decodeContent(reader.inputFile, "test/decoded_content_file");
 				reader.dump("test");
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -98,30 +62,22 @@ public class CHMReader {
 		for (ListingEntry entry: listing.values()) {
 			File f = new File(parent, entry.name);
 			System.out.println(entry.name + ": " + entry.section + " @ " + entry.offset + " = " + entry.length);
+			f.getParentFile().mkdirs();
 			if (entry.name.charAt(entry.name.length() - 1) == '/') {
 				f.mkdir();
 			} else if (entry.section == 0) {
-				if (entry.name.charAt(0) == ':') {
-					// XXX: skip it after debugging is finished
-					// system file
-					f.getParentFile().mkdirs();
-				}
 				OutputStream output = new BufferedOutputStream(new FileOutputStream(f));
-				input.seek(dataOffset + entry.offset);
+				inputFile.seek(dataOffset + entry.offset);
 				long len = entry.length;
 				byte buf[] = new byte[1024];
 				while (len > 0) {
-					int read = input.read(buf, 0,
-							(int) (len > buf.length?
-									buf.length:
-									len));
+					final int toRead = (int) (len > buf.length?
+											  buf.length:
+											  len);
+					inputFile.readFully(buf, 0, toRead);
 
-					if (read == -1) {
-						output.close();
-						throw new IOException("read returned -1");
-					}
-					output.write(buf, 0, read);
-					len -= read;
+					output.write(buf, 0, toRead);
+					len -= toRead;
 				}
 				output.close();
 			} else {
@@ -133,304 +89,84 @@ public class CHMReader {
 		}
 	}
 
-	private long readQword() throws IOException {
-		byte[] data = new byte[8];
-		
-		input.read(data);
-		
-		return	
-				((data[0] & 0xff) << (0 * 8)) | 
-				((data[1] & 0xff) << (1 * 8)) |
-				((data[2] & 0xff) << (2 * 8)) |
-				((data[3] & 0xff) << (3 * 8)) | 
-				((data[4] & 0xff) << (4 * 8)) |
-				((data[5] & 0xff) << (5 * 8)) |
-				((data[6] & 0xff) << (6 * 8)) |
-				((data[7] & 0xff) << (7 * 8));
-	}
-	
-	private int readDword() throws IOException {
-		byte[] data = new byte[4];
-		
-		input.read(data);
-		
-		return	
-				((data[0] & 0xff) << (0 * 8)) | 
-				((data[1] & 0xff) << (1 * 8)) |
-				((data[2] & 0xff) << (2 * 8)) |
-				((data[3] & 0xff) << (3 * 8));
-	}
-	
-	private short readWord() throws IOException {
-		byte[] data = new byte[2];
-		
-		input.read(data);
-		
-		return	(short) (
-				((data[0] & 0xff) << (0 * 8)) | 
-				((data[1] & 0xff) << (1 * 8)));
-	}
-	
-	private long readCWord() throws IOException {
-		long result = 0;
+	private void read(RandomAccessFile input) throws IOException, FileFormatException {
+		readFormatHeader(input);
+		readFileSizeSection(input);
+		readIndexSection(input);
 
-		int b;
-		do {
-			b = input.read();
-			result = (result << 7) | (b & 0x7f);
-		} while ((b & 0x80) != 0);
-		return result;
-	}
-
-	private String readString() throws IOException, FileFormatException {
-		int len = (int) readCWord();
-		byte[] buf = new byte[len];
-		input.read(buf);
-		
-		StringBuilder builder = new StringBuilder();
-		int ucs32 = 0;
-		for (int i = 0, left = 0; i < len; i++) {
-			int c = buf[i] & 0xff;
-			if (left == 0) {
-				if ((c & 0x80) == 0) {
-					ucs32 = c & 0x7f;
-				} else if ((c & 0x40) == 0 || c == 0xff || c == 0xfe) {
-					throw new FileFormatException("Bad UTF-8 String!!!");
-				} else if ((c & 0x20) == 0) {
-					left = 1;
-					ucs32 = c & 0x1f;
-				} else if ((c & 0x10) == 0) {
-					left = 2;
-					ucs32 = c & 0x0f;
-				} else if ((c & 0x08) == 0) {
-					left = 3;
-					ucs32 = c & 0x07; 
-				} else if ((c & 0x04) == 0) {
-					left = 4;
-					ucs32 = c & 0x03;
-				} else if ((c & 0x02) == 0) {
-					left = 5;
-					ucs32 = c & 0x01;
-				}
-			} else { // left != 0
-				left --;
-				if ((c & 0xc0) != 0x80) {
-					throw new FileFormatException("Bad UTF-8 String!!!");
-				}
-				ucs32 = (ucs32 << 6) | (c & 0x3f);
-			}
-			
-			if (left == 0) {
-				builder.append(Character.toChars(ucs32));
-			}
-		}
-		String str = builder.toString();
-		return str;
-	}
-
-	private char getChar(int b) {
-		int temp = b & 0xf;
-		return (char) (temp < 10 ? temp + '0' : temp - 10 + 'A');
-	}
-	
-	private String readGUID() throws IOException {
-		StringBuilder builder = new StringBuilder();
-		
-		builder.append('{');
-		int dw = readDword();
-		for (int i = 7; i >= 0; i --) {
-			builder.append(getChar(dw >> (4*i)));
-		}
-
-		builder.append('-');
-
-		short w1 = readWord();
-		for (int i = 3; i >= 0; i --) {
-			builder.append(getChar(w1 >> (4*i)));
-		}
-
-		builder.append('-');
-
-		short w2 = readWord();
-		for (int i = 3; i >= 0; i --) {
-			builder.append(getChar(w2 >> (4*i)));
-		}
-
-		builder.append('-');
-
-		for (int i = 0; i < 4; i++) {
-			int b = input.read();
-			builder.append(getChar(b >> 4));
-			builder.append(getChar(b >> 0));
-		}
-
-		builder.append('-');
-
-		for (int i = 0; i < 4; i++) {
-			int b = input.read();
-			builder.append(getChar(b >> 4));
-			builder.append(getChar(b >> 0));
-		}
-
-		builder.append('}');
-
-//		System.out.println(builder.toString());
-		return builder.toString();
-	}
-
-	private void checkHeader(byte[] expected) throws IOException, FileFormatException {
-		byte[] header = new byte[expected.length];
-		input.read(header);
-		
-		if (!Arrays.equals(header, expected)) {
-			throw new FileFormatException("bad file header");
-		}
-	}
-
-	private void read() throws IOException, FileFormatException {
-		readFormatHeader();
-		readFileSizeSection();
-		readIndexSection();
-		readNameList();
-		
-		readResetTable();
-		readControlData();
+		readNameList(input);
+		readResetTable(input);
+		readControlData(input);
 		
 		ListingEntry entry = listing.get(FILE_CONTENT);
 		contentOffset = dataOffset + entry.offset;
 	}
 
-	private void readFormatHeader() throws IOException, FileFormatException {
-		input.seek(0);
+	private void readIndexSection(RandomAccessFile input) throws IOException, FileFormatException {
+		input.seek(getSectionOffset(SECTION_INDEX));
 
-		checkHeader(FILE_HEADER);
+		checkHeader(input, HEADER_INDEX_SECTION);
 		
-		int version = readDword();
-		System.out.println("ITSF Version: " + version);
-		if (version != 3 && version != 2) {
-			throw new FileFormatException("ITSF Version " + version + " is unsupported");
-		}
-
-		int headerLen = readDword();
-//		System.out.println("Header len: " + headerLen);
-		if ((version == 2 && headerLen != 0x58) || 
-			(version == 3 && headerLen != 0x60)) {
-			throw new FileFormatException("bad section length");
-		}
-		
-		readDword(); // 1
-		
-		readDword(); // time
-		
-		readDword(); // LCID
-		
-		readGUID();
-		readGUID();
-		
-		fileSectionOffset = readQword();
-		fileSectionLength = readQword();
-		indexSectionOffset = readQword();
-		indexSectionLength = readQword();
-		
-		if (version == 3) {
-			dataOffset = readQword();
-		} else {
-			dataOffset = indexSectionOffset + indexSectionLength;
-		}
-	}
-	
-	private void readFileSizeSection() throws FileFormatException, IOException {
-		input.seek(fileSectionOffset);
-		checkHeader(FILE_SECTION);
-
-		if (fileSectionLength < 0x18) {
-			throw new FileFormatException("FileSize section is too small");
-		} else if (fileSectionLength > 0x18) {
-			System.out.format("Warning: extra %d bytes at the end of FileSize section%n", fileSectionLength - 0x18);
-		}
-
-		
-		int unk = readDword(); // mostly 0. One file with 1
-		if (unk != 0) {
-			System.out.println("Warning: unknown element expected to be zero: " + unk);
-		}
-		fileSize = readQword();
-		if (fileSize != input.length()) {
-			// TODO: support truncated files
-			throw new FileFormatException("Bad file size : "
-					+ fileSize + " != " + input.length());
-		}
-
-		readDword(); // 0
-		readDword(); // 0
-
-	}
-
-	private void readIndexSection() throws IOException, FileFormatException {
-		input.seek(indexSectionOffset);
-
-		checkHeader(INDEX_SECTION);
-		
-		int version = readDword();
+		int version = readDWord(input);
 		System.out.println("ITSP Version: " + version);
 		if (version != 1) {
 			throw new FileFormatException("ITSP Version " + version + " is unsupported");
 		}
 		
-		int headerLen = readDword();
+		int headerLen = readDWord(input);
 		if (headerLen != 0x54) {
 			throw new FileFormatException("bad section length");
 		}
 		
-		directoryOffset = indexSectionOffset + headerLen;
+		directoryOffset = getSectionOffset(SECTION_INDEX) + headerLen;
 		
-		int unk = readDword();
+		int unk = readDWord(input);
 		if (unk != 0xa) {
 			System.out.format("Expected 0x0a for unknown data, got 0x%x%n", unk);
 		}
 		
-		directoryBlockSize = readDword();
-		/*int quickRefDensity = */readDword();
-		/*int indexTreeDepth = */readDword();
-		int rootIndexChunk = readDword();
-		int firstListChunk = readDword();
-		int lastListChunk = readDword();
-		int unk2 = readDword(); // -1
+		directoryBlockSize = readDWord(input);
+		/*int quickRefDensity = */readDWord(input);
+		/*int indexTreeDepth = */readDWord(input);
+		int rootIndexChunk = readDWord(input);
+		int firstListChunk = readDWord(input);
+		int lastListChunk = readDWord(input);
+		int unk2 = readDWord(input); // -1
 		if (unk2 != -1) {
 			System.out.format("Expected -1 for unk2, got 0x%08x%n", unk2);
 		}
-		directoryChunks = readDword();
+		int directoryChunks = readDWord(input);
 		
 //		System.out.format("%x: %d %d %d %d%n", directoryBlockSize, rootIndexChunk, firstListChunk, lastListChunk, directoryChunks);
 
-		readDword(); // lcid
-		readGUID(); // guid
+		readDWord(input); // lcid
+		readGUID(input); // guid
 
-		int len2 = readDword();
+		int len2 = readDWord(input);
 		if (len2 != headerLen) {
 			System.out.format("Bad second length: expected 0x%x, got 0x%x", headerLen, len2);
 		}
-		int unk3 = readDword(); // -1
+		int unk3 = readDWord(input); // -1
 		if (unk3 != -1) {
 			System.out.format("Expected -1 for unk3, got 0x%08x%n", unk3);
 		}
-		int unk4 = readDword(); // -1
+		int unk4 = readDWord(input); // -1
 		if (unk4 != -1) {
 			System.out.format("Expected -1 for unk4, got 0x%08x%n", unk4);
 		}
-		int unk5 = readDword(); // -1
+		int unk5 = readDWord(input); // -1
 		if (unk5 != -1) {
 			System.out.format("Expected -1 for unk5, got 0x%08x%n", unk5);
 		}
 		
 		for (int chunk = 0; chunk < directoryChunks; chunk++) {
 			if (chunk == rootIndexChunk) {
-				readIndex(chunk);
+				readIndex(input, chunk);
 			} else if (chunk >= firstListChunk && chunk <= lastListChunk) {
-				readListing(chunk);
+				readListing(input, chunk);
 			} else {
 				byte[] header = new byte[4];
-				input.read(header);
+				input.readFully(header);
 				char[] cheader = new char[4];
 				for (int j = 0; j < 4; j++) {
 					cheader[j] = (char) header[j];
@@ -441,110 +177,74 @@ public class CHMReader {
 		}
 	}
 
-	private void readListing(int chunk) throws IOException, FileFormatException {
-		checkHeader(PMGL_HEADER);
-		int freeSpace = readDword();
+	private void readListing(RandomAccessFile input, int chunk) throws IOException, FileFormatException {
+		checkHeader(input, HEADER_PMGL);
+		int freeSpace = readDWord(input);
 		long endPos = directoryOffset + (chunk + 1)* directoryBlockSize - freeSpace; 
 
-		int unk = readDword();
+		int unk = readDWord(input);
 		if (unk != 0) {
 			System.out.format("Expected 0x0 for unknown data, got 0x%x%n", unk);
 		}
 
-		/*int previousChunk = */readDword();
-		/*int nextChunk = */readDword();
+		/*int previousChunk = */readDWord(input);
+		/*int nextChunk = */readDWord(input);
 		
 		//System.out.println(previousChunk + " <-> " + nextChunk);
 		
-		while (input.getFilePointer() < endPos) {
-			String name = readString();
-			int section = (int) readCWord();
-			long offset = readCWord();
-			long len = readCWord();
-			listing.put(name, new ListingEntry(name, section, offset, len));
-//			System.out.println(name);
-		}
+		readListingEntries(input, endPos, listing);
 
 		input.skipBytes(freeSpace);
 	}
 
-	private void readIndex(int chunk) throws IOException {
+	private void readIndex(RandomAccessFile input, int chunk) throws IOException {
 		// just skip bytes. We don't use index
 		input.skipBytes(directoryBlockSize);
 	}
 
-	private void readNameList() throws IOException, FileFormatException {
-		ListingEntry entry = listing.get(FILE_NAME_LIST);
-
-		input.seek(dataOffset + entry.offset);
-
-		short len = readWord();
-		if (len * 2 != entry.length) {
-			throw new FileFormatException("Incorrect " + FILE_NAME_LIST + " length");
-		}
-		
-		short entries = readWord();
-		if (entries != 2) {
-			System.out.println("Warning: more than two compression sections");
-		}
-		
-		sectionNames = new String[entries];
-		
-		for (int i = 0; i < entries; i++) {
-			short nameLen = readWord();
-			char[] name = new char[nameLen];
-			for (int j = 0; j < nameLen; j++) {
-				name[j] = (char) readWord();
-			}
-			readWord(); // terminal zero
-			sectionNames[i] = new String(name);
-		}
-		System.out.println(Arrays.toString(sectionNames));
-	}
-	
-	private void readResetTable() throws FileFormatException, IOException {
+	private void readResetTable(RandomAccessFile input) throws FileFormatException, IOException {
 		ListingEntry entry = listing.get(FILE_RESET_TABLE);
 		if (entry == null || entry.section != 0 || entry.length < 0x30) {
 			throw new FileFormatException("Bad ResetTable file");
 		}
 		
 		input.seek(dataOffset + entry.offset);
-		int version = readDword();
+		int version = readDWord(input);
 		System.out.println("ResetTable Version: " + version);
 		if (version != 2) {
 			throw new FileFormatException("ResetTable Version " + version + " is unsupported");
 		}
 		
-		int resetNum = readDword();
+		int resetNum = readDWord(input);
 		System.out.println(resetNum + " entries in ResetTable");
 		resets = new long[resetNum];
 
-		int entrySize = readDword();
+		int entrySize = readDWord(input);
 		if (entrySize != 8) {
 			throw new FileFormatException("Size of ResetTable entry isn't 8 (" + entrySize + ")");
 		}
 		
-		int headerSize = readDword();
+		int headerSize = readDWord(input);
 		if (headerSize != 0x28) {
 			throw new FileFormatException("Unsupported ResetTable header size: " + headerSize);
 		}
 		
-		uncompressedLength = readQword();
-		compressedLength = readQword();
+		uncompressedLength = readQWord(input);
+		compressedLength = readQWord(input);
 		
 		System.out.format("Content compression 0x%x -> 0x%x%n", uncompressedLength, compressedLength);
 		
-		long blockSize = readQword();
+		long blockSize = readQWord(input);
 		if (blockSize != 0x8000) {
 			throw new FileFormatException("BlockSize isn't 0x8000: " + blockSize);
 		}
 		
 		for (int i = 0; i < resetNum; i++) {
-			resets[i] = readQword();
+			resets[i] = readQWord(input);
 		}
 	}
 	
-	private void readControlData() throws FileFormatException, IOException {
+	private void readControlData(RandomAccessFile input) throws FileFormatException, IOException {
 		ListingEntry entry = listing.get(FILE_CONTROL_DATA);
 		if (entry == null || entry.section != 0 || entry.length < 0x1c) {
 			throw new FileFormatException("Bad ControlData file: " + entry);
@@ -552,29 +252,29 @@ public class CHMReader {
 		
 		input.seek(dataOffset + entry.offset);
 		
-		int size = readDword();
+		int size = readDWord(input);
 		if (size != 6) {
 			throw new FileFormatException("Bad size of ControlData: " + size);
 		}
 		
-		checkHeader(LZXC_HEADER);
+		checkHeader(input, HEADER_LZXC);
 		
-		int version = readDword();
+		int version = readDWord(input);
 		System.out.println("ControlData Version: " + version);
 		if (version != 2) {
 			throw new FileFormatException("ControlData Version " + version + " is unsupported");
 		}
 		
-		resetInterval = readDword();
-		windowSize = readDword();
-		int cacheSize = readDword();
+		resetInterval = readDWord(input);
+		windowSize = readDWord(input);
+		int cacheSize = readDWord(input);
 		
 		System.out.println("Resets parameters: " + resetInterval + ", " + windowSize + ", " + cacheSize);
 		if (resetInterval % (windowSize / 2) != 0) {
 			throw new FileFormatException("Unsupported reset interval value");
 		}
 
-		int unk = readDword();
+		int unk = readDWord(input);
 		if (unk != 0) {
 			System.out.println("Warning: unknown element expected to be zero: " + unk);
 		}
@@ -604,7 +304,7 @@ public class CHMReader {
 		
 		final int length = (int) entry.length;
 		
-		byte[] block = getBlock(startBlock);
+		byte[] block = getBlock(inputFile, startBlock);
 		if (startBlock == endBlock) {
 			return Arrays.copyOfRange(block, startOffset, startOffset + length);
 		}
@@ -615,18 +315,18 @@ public class CHMReader {
 
 		
 		for (int i = startBlock+1; i < endBlock; i++) {
-			block = getBlock(i);
+			block = getBlock(inputFile, i);
 			MemoryUtils.byteArrayCopy(data, filled, block, 0, block.length);
 			filled += block.length;
 		}
 		
-		block = getBlock(endBlock);
+		block = getBlock(inputFile, endBlock);
 		MemoryUtils.byteArrayCopy(data, filled, block, 0, length - filled);
 		
 		return data;
 	}
 
-	private byte[] getBlock(int blockNo) throws IOException, FileFormatException {
+	private byte[] getBlock(RandomAccessFile input, int blockNo) throws IOException, FileFormatException {
 		byte[] data = blockCache.get(blockNo);
 		
 		if (data != null) {
@@ -641,29 +341,29 @@ public class CHMReader {
 		
 		for (int i = startBlock; i < blockNo; i++) {
 			System.out.println("Extra: " + i);
-			decodeBlock(i);
+			decodeBlock(input, i);
 		}
 
 		System.out.println("Decoding: " + blockNo);
-		return decodeBlock(blockNo);
+		return decodeBlock(input, blockNo);
 	}
 
 	@SuppressWarnings("unused")
-	private void decodeContent(String fname) throws IOException, FileFormatException {
+	private void decodeContent(RandomAccessFile input, String fname) throws IOException, FileFormatException {
 		ListingEntry entry = listing.get(FILE_CONTENT);
 		
 		input.seek(contentOffset);
 		OutputStream output = new BufferedOutputStream(new FileOutputStream(fname));
 		final long maxBlock = resets.length;
 		for (int i = 0; i < maxBlock ; i++) {
-			byte[] out = decodeBlock(i);
+			byte[] out = decodeBlock(input, i);
 			output.write(out);
 			output.flush();
 		}
 		output.close();
 	}
 
-	private byte[] decodeBlock(int blockNumber) throws IOException, FileFormatException {
+	private byte[] decodeBlock(RandomAccessFile input, int blockNumber) throws IOException, FileFormatException {
 		if (blockNumber % resetBlockInterval == 0) {
 			System.out.println("Reset: " + blockNumber);
 			input.seek(contentOffset + resets[blockNumber]);
@@ -683,7 +383,7 @@ public class CHMReader {
 		}
 		System.out.format("Decode %d %04x %04x%n", blockNumber, compBlockLen, uncompBlockLen);
 		byte[] inp = new byte[compBlockLen];
-		input.read(inp);
+		input.readFully(inp);
 
 		byte[] block =  decompressor.decode(inp, uncompBlockLen);
 

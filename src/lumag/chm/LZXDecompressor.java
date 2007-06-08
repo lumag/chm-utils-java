@@ -57,7 +57,9 @@ public class LZXDecompressor {
 
 	private int windowPosition;
 
+	@SuppressWarnings("unused")
 	private boolean intel_started;
+	@SuppressWarnings("unused")
 	private long intel_filesize;
 
 	private int blockType;
@@ -71,7 +73,7 @@ public class LZXDecompressor {
 	private byte[] alignedTreeLengths;
 	private short[] alignedTreeSymbols;
 
-	LZXDecompressor(int wnd) {
+	public LZXDecompressor(int wnd) {
 		if (wnd < (1 << 15) || wnd > (1 << 21)) {
 			throw new IllegalArgumentException("Bad window size");
 		}
@@ -278,7 +280,7 @@ public class LZXDecompressor {
 		return result;
 	}
 
-	void reset() {
+	public void reset() {
 		R0 = R1 = R2 = 1;
 		bitbuffer = 0;
 		bblen = 0;
@@ -296,7 +298,7 @@ public class LZXDecompressor {
 
 	}
 
-	byte[] decode(byte[] in, int outLength) throws FileFormatException {
+	public byte[] decode(byte[] in, int outLength) throws FileFormatException {
 		input = in;
 		inPos = 0;
 
