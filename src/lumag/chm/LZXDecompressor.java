@@ -2,8 +2,6 @@ package lumag.chm;
 
 import java.util.Arrays;
 
-import lumag.util.MemoryUtils;
-
 public class LZXDecompressor {
 	private static final byte[] EXTRA_BITS = {
 		0,  0,  0,  0,  1,  1,  2,  2,  3,  3,  4,  4,  5,  5,  6,  6,
@@ -523,13 +521,13 @@ public class LZXDecompressor {
 
 				if (src < 0 && matchLength > 0) {
 					int tempLen = (matchLength + src > 0)? -src : matchLength;
-					MemoryUtils.byteArrayCopy(window, dest, window, windowSize + src, tempLen);
+					System.arraycopy(window, windowSize + src, window, dest, tempLen);
 					src += tempLen;
 					dest += tempLen;
 					matchLength -= tempLen;
 				}
 
-				MemoryUtils.byteArrayCopy(window, dest, window, src, matchLength);
+				System.arraycopy(window, src, window, dest, matchLength);
 				src += matchLength;
 				dest += matchLength;
 
@@ -542,7 +540,7 @@ public class LZXDecompressor {
 			throw new FileFormatException("Illegal data");
 		}
 
-		MemoryUtils.byteArrayCopy(window, windowPosition, input, inPos, (int) length);
+		System.arraycopy(input, inPos, window, windowPosition, (int) length);
 
 		windowPosition += length;
 		inPos += length;

@@ -9,7 +9,6 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 
-import lumag.util.MemoryUtils;
 import lumag.util.ReaderHelper;
 
 public class CHMReader extends CommonReader {
@@ -236,17 +235,17 @@ public class CHMReader extends CommonReader {
 
 		byte[] data = new byte[length];
 		int filled = block.length - startOffset;
-		MemoryUtils.byteArrayCopy(data, 0, block, startOffset, filled);
+		System.arraycopy(block, startOffset, data, 0, filled);
 
 		
 		for (int i = startBlock+1; i < endBlock; i++) {
 			block = lzxcState.getBlock(inputFile, i);
-			MemoryUtils.byteArrayCopy(data, filled, block, 0, block.length);
+			System.arraycopy(block, 0, data, filled, block.length);
 			filled += block.length;
 		}
 		
 		block = lzxcState.getBlock(inputFile, endBlock);
-		MemoryUtils.byteArrayCopy(data, filled, block, 0, length - filled);
+		System.arraycopy(block, 0, data, filled, length - filled);
 		
 		return data;
 	}
