@@ -8,7 +8,7 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 
-public class LitReader extends MSReader {
+public class LitReader extends CommonReader {
 	private static final byte[] HEADER_ITOL = {'I', 'T', 'O', 'L'};
 	private static final byte[] HEADER_ITLS = {'I', 'T', 'L', 'S'};
 	private static final byte[] HEADER_CAOL = {'C', 'A', 'O', 'L'};
@@ -21,7 +21,7 @@ public class LitReader extends MSReader {
 	private RandomAccessFile inputFile;
 
 	private int directoryBlockSize;
-	private int directoryIndexBlockSize;
+	// private int directoryIndexBlockSize;
 	private long rootIndexChunk;
 	private long firstListChunk;
 	private long lastListChunk;
@@ -132,14 +132,14 @@ public class LitReader extends MSReader {
 
 		directoryBlockSize = readDWord(input);
 		
-		int density = readDWord(input);
+		/* int density = */readDWord(input);
 
 		int unk = readDWord(input); // 0
 		if (unk != 0) {
 			System.out.format("Expected 0 for unk2, got 0x%08x%n", unk);
 		}
 		
-		int mainDepth = readDWord(input);
+		/* int mainDepth = */readDWord(input);
 
 		unkl = readQWord(input); // 0
 		if (unkl != 0) {
@@ -150,25 +150,25 @@ public class LitReader extends MSReader {
 		System.out.println("Directory entries: " + directoryEntries);
 		
 		// directory index
-		long rootIndexChunkIndex = readQWord(input);
-		long firstListChunkIndex = readQWord(input);
-		long lastListChunkIndex = readQWord(input);
+		/* long rootIndexChunkIndex = */readQWord(input);
+		/* long firstListChunkIndex = */readQWord(input);
+		/* long lastListChunkIndex = */readQWord(input);
 
 		unkl = readQWord(input); // 0
 		if (unkl != 0) {
 			System.out.format("Expected 0 for unk4, got 0x%08x%n", unkl);
 		}
 
-		directoryIndexBlockSize = readDWord(input);
+		/* directoryIndexBlockSize = */readDWord(input);
 		
-		int indexDensity = readDWord(input);
+		/* int indexDensity = */readDWord(input);
 		
 		unk = readDWord(input); // 0
 		if (unk != 0) {
 			System.out.format("Expected 0 for unk5, got 0x%08x%n", unk);
 		}
 
-		int indexDepth = readDWord(input);
+		/* int indexDepth = */readDWord(input);
 		
 		long flags = readQWord(input); // unknown
 		System.out.format("Flags: 0x%x%n", flags);
@@ -240,7 +240,6 @@ public class LitReader extends MSReader {
 				input.skipBytes(directoryBlockSize - 4);
 			}
 		}
-		// TODO Auto-generated method stub
 		
 	}
 

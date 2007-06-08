@@ -12,7 +12,7 @@ import java.util.Arrays;
 import lumag.util.FixedSizeCache;
 import lumag.util.MemoryUtils;
 
-public class CHMReader extends MSReader {
+public class CHMReader extends CommonReader {
 	private static final String FILE_RESET_TABLE = "::DataSpace/Storage/MSCompressed/Transform/{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}/InstanceData/ResetTable";
 	private static final String FILE_CONTROL_DATA = "::DataSpace/Storage/MSCompressed/ControlData";
 	private static final String FILE_CONTENT = "::DataSpace/Storage/MSCompressed/Content";

@@ -6,7 +6,9 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public abstract class MSReader extends ReaderHelper {
+import lumag.util.ReaderHelper;
+
+abstract class CommonReader extends ReaderHelper {
 
 	private static final byte[] HEADER_FILE = {'I', 'T', 'S', 'F'};
 	private static final byte[] HEADER_FILE_SECTION = {(byte) 0xfe, 0x01, 0x00, 0x00};

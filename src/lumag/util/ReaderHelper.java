@@ -1,12 +1,14 @@
-package lumag.chm;
+package lumag.util;
 
 import java.io.DataInput;
 import java.io.IOException;
 import java.util.Arrays;
 
-abstract class ReaderHelper {
+import lumag.chm.FileFormatException;
 
-	protected long readQWord(DataInput input) throws IOException {
+public class ReaderHelper {
+
+	public static long readQWord(DataInput input) throws IOException {
 		byte[] data = new byte[8];
 		
 		input.readFully(data);
@@ -22,7 +24,7 @@ abstract class ReaderHelper {
 				(((long) data[7] & 0xff) << (7 * 8));
 	}
 
-	protected int readDWord(DataInput input) throws IOException {
+	public static int readDWord(DataInput input) throws IOException {
 		byte[] data = new byte[4];
 		
 		input.readFully(data);
@@ -34,7 +36,7 @@ abstract class ReaderHelper {
 				((data[3] & 0xff) << (3 * 8));
 	}
 
-	protected short readWord(DataInput input) throws IOException {
+	public static short readWord(DataInput input) throws IOException {
 		byte[] data = new byte[2];
 		
 		input.readFully(data);
@@ -44,7 +46,7 @@ abstract class ReaderHelper {
 				((data[1] & 0xff) << (1 * 8)));
 	}
 
-	protected long readCWord(DataInput input) throws IOException {
+	public static long readCWord(DataInput input) throws IOException {
 		long result = 0;
 	
 		int b;
@@ -55,7 +57,7 @@ abstract class ReaderHelper {
 		return result;
 	}
 
-	protected String readString(DataInput input) throws IOException, FileFormatException {
+	public static String readString(DataInput input) throws IOException, FileFormatException {
 		int len = (int) readCWord(input);
 		if (len < 0) {
 			throw new FileFormatException("Incorrect string length");
@@ -104,12 +106,12 @@ abstract class ReaderHelper {
 		return str;
 	}
 
-	private char getChar(int b) {
+	private static char getChar(int b) {
 		int temp = b & 0xf;
 		return (char) (temp < 10 ? temp + '0' : temp - 10 + 'A');
 	}
 
-	protected String readGUID(DataInput input) throws IOException {
+	public static String readGUID(DataInput input) throws IOException {
 			StringBuilder builder = new StringBuilder();
 			
 			builder.append('{');
@@ -154,7 +156,7 @@ abstract class ReaderHelper {
 			return builder.toString();
 		}
 
-	protected void checkHeader(DataInput input, byte[] expected) throws IOException, FileFormatException {
+	public static void checkHeader(DataInput input, byte[] expected) throws IOException, FileFormatException {
 		byte[] header = new byte[expected.length];
 		input.readFully(header);
 		
