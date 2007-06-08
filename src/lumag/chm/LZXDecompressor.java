@@ -53,6 +53,7 @@ public class LZXDecompressor {
 	private int bblen;
 
 	private byte[] input;
+	private int inputLength;
 	private int inPos;
 
 	private int windowPosition;
@@ -111,7 +112,7 @@ public class LZXDecompressor {
 
 		ensureBits(n);
 		
-		if (inPos > input.length) {
+		if (inPos > inputLength) {
 			throw new FileFormatException("Input buffer overrun");
 		}
 
@@ -131,7 +132,7 @@ public class LZXDecompressor {
 		}
 		while (bblen < n) {
 			// allow small overread with zeroes. Handled in readBits
-			if (inPos < input.length) {
+			if (inPos < inputLength) {
 				bitbuffer |= ((long) ( ((input[inPos+1] & 0xff) << 8) | input[inPos] & 0xff)) << (LONG_BITS - 16 - bblen);
 			}
 
@@ -299,7 +300,12 @@ public class LZXDecompressor {
 	}
 
 	public byte[] decode(byte[] in, int outLength) throws FileFormatException {
+		return decode(in, in.length, outLength, null);
+	}
+
+	public byte[] decode(byte[] in, int inLen, int outLength, int[] processed) throws FileFormatException {
 		input = in;
+		inputLength = inLen;
 		inPos = 0;
 
 		getBits(bblen % 16);
@@ -318,7 +324,7 @@ public class LZXDecompressor {
 		int toGo = outLength;
 
 		while (toGo > 0) {
-//			System.out.format("Left: %04x (%04x)%n", input.length - inPos, toGo);
+//			System.out.format("Left: %04x (%04x)%n", inputLength - inPos, toGo);
 			if (blockRemaining == 0) {
 				if (blockType == LZX_BLOCK_UNCOMPRESSED) {
 					// restore bitstream
@@ -385,11 +391,21 @@ public class LZXDecompressor {
 			}
 
 		}
-
-		if (inPos > input.length) {
-			bblen -= (inPos - input.length) * 8;
-		}
 		
+		if (bblen > 16) {
+			inPos -= (bblen / 16) * 2;
+			bblen %= 16;
+		}
+
+		if (inPos > inputLength) {
+			bblen -= (inPos - inputLength) * 8;
+			inPos = inputLength;
+		}
+
+		if (processed != null && processed.length > 0) {
+			processed[0] = inPos;
+		}
+
 		int to = (windowPosition == 0? windowSize : windowPosition);
 
 		return Arrays.copyOfRange(window, to - outLength, to);
