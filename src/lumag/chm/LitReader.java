@@ -8,6 +8,8 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 
+import lumag.util.ReaderHelper;
+
 public class LitReader extends CommonReader {
 	private static final byte[] HEADER_ITOL = {'I', 'T', 'O', 'L'};
 	private static final byte[] HEADER_ITLS = {'I', 'T', 'L', 'S'};
@@ -81,28 +83,28 @@ public class LitReader extends CommonReader {
 	}
 
 	private void readITOLITLS(RandomAccessFile input) throws IOException, FileFormatException {
-		checkHeader(input, HEADER_ITOL);
-		checkHeader(input, HEADER_ITLS);
+		ReaderHelper.checkHeader(input, HEADER_ITOL);
+		ReaderHelper.checkHeader(input, HEADER_ITLS);
 		
-		int version = readDWord(input);
+		int version = ReaderHelper.readDWord(input);
 		System.out.println("ITOL/ITLS version: " + version);
 		if (version != 1) {
 			throw new FileFormatException("ITOL/ITLS Version " + version + " is unsupported");
 		}
 
-		int headerLen = readDWord(input);
+		int headerLen = ReaderHelper.readDWord(input);
 //		System.out.println("Header len: " + headerLen);
 		if (headerLen != 0x28) {
 			throw new FileFormatException("bad section length");
 		}
 		
-		int entries = readDWord(input);
-		int postHeaderLen = readDWord(input);
+		int entries = ReaderHelper.readDWord(input);
+		int postHeaderLen = ReaderHelper.readDWord(input);
 //		System.out.println("Post-Header len: " + postHeaderLen);
 		if (postHeaderLen != 0xe8) {
 			throw new FileFormatException("bad postHeader length");
 		}
-		readGUID(input);
+		ReaderHelper.readGUID(input);
 		
 		readSectionTable(input, entries);
 
@@ -110,77 +112,77 @@ public class LitReader extends CommonReader {
 	}
 	
 	private void readPostHeaderTable(RandomAccessFile input) throws IOException, FileFormatException {
-		int ver2 = readDWord(input);
+		int ver2 = ReaderHelper.readDWord(input);
 		System.out.println("Second version: " + ver2);
 		if (ver2 != 2) {
 			throw new FileFormatException("2nd version " + ver2 + " is unsupported");
 		}
 		
-		int caolOffset = readDWord(input);
+		int caolOffset = ReaderHelper.readDWord(input);
 		if (caolOffset != 0x98) {
 			throw new FileFormatException("'CAOL' header offset isn't 0x98: " + caolOffset);
 		}
 
-		rootIndexChunk = readQWord(input);
-		firstListChunk = readQWord(input);
-		lastListChunk = readQWord(input);
+		rootIndexChunk = ReaderHelper.readQWord(input);
+		firstListChunk = ReaderHelper.readQWord(input);
+		lastListChunk = ReaderHelper.readQWord(input);
 
-		long unkl = readQWord(input); // 0
+		long unkl = ReaderHelper.readQWord(input); // 0
 		if (unkl != 0) {
 			System.out.format("Expected 0 for unk, got 0x%08x%n", unkl);
 		}
 
-		directoryBlockSize = readDWord(input);
+		directoryBlockSize = ReaderHelper.readDWord(input);
 		
-		/* int density = */readDWord(input);
+		/* int density = */ReaderHelper.readDWord(input);
 
-		int unk = readDWord(input); // 0
+		int unk = ReaderHelper.readDWord(input); // 0
 		if (unk != 0) {
 			System.out.format("Expected 0 for unk2, got 0x%08x%n", unk);
 		}
 		
-		/* int mainDepth = */readDWord(input);
+		/* int mainDepth = */ReaderHelper.readDWord(input);
 
-		unkl = readQWord(input); // 0
+		unkl = ReaderHelper.readQWord(input); // 0
 		if (unkl != 0) {
 			System.out.format("Expected 0 for unk3, got 0x%08x%n", unkl);
 		}
 
-		long directoryEntries = readQWord(input);
+		long directoryEntries = ReaderHelper.readQWord(input);
 		System.out.println("Directory entries: " + directoryEntries);
 		
 		// directory index
-		/* long rootIndexChunkIndex = */readQWord(input);
-		/* long firstListChunkIndex = */readQWord(input);
-		/* long lastListChunkIndex = */readQWord(input);
+		/* long rootIndexChunkIndex = */ReaderHelper.readQWord(input);
+		/* long firstListChunkIndex = */ReaderHelper.readQWord(input);
+		/* long lastListChunkIndex = */ReaderHelper.readQWord(input);
 
-		unkl = readQWord(input); // 0
+		unkl = ReaderHelper.readQWord(input); // 0
 		if (unkl != 0) {
 			System.out.format("Expected 0 for unk4, got 0x%08x%n", unkl);
 		}
 
-		/* directoryIndexBlockSize = */readDWord(input);
+		/* directoryIndexBlockSize = */ReaderHelper.readDWord(input);
 		
-		/* int indexDensity = */readDWord(input);
+		/* int indexDensity = */ReaderHelper.readDWord(input);
 		
-		unk = readDWord(input); // 0
+		unk = ReaderHelper.readDWord(input); // 0
 		if (unk != 0) {
 			System.out.format("Expected 0 for unk5, got 0x%08x%n", unk);
 		}
 
-		/* int indexDepth = */readDWord(input);
+		/* int indexDepth = */ReaderHelper.readDWord(input);
 		
-		long flags = readQWord(input); // unknown
+		long flags = ReaderHelper.readQWord(input); // unknown
 		System.out.format("Flags: 0x%x%n", flags);
 		
-		long directoryIndexEntries = readQWord(input);
+		long directoryIndexEntries = ReaderHelper.readQWord(input);
 		System.out.println("Directory index entries: " + directoryIndexEntries);
 		
-		int unk5 = readDWord(input);
-		int unk6 = readDWord(input);
+		int unk5 = ReaderHelper.readDWord(input);
+		int unk6 = ReaderHelper.readDWord(input);
 		System.out.format("Unknowns: %08x %08x%n", unk5, unk6);
 		
-		unkl = readQWord(input); // 0
+		unkl = ReaderHelper.readQWord(input); // 0
 		if (unkl != 0) {
 			System.out.format("Expected 0 for unk7, got 0x%08x%n", unkl);
 		}
@@ -189,28 +191,28 @@ public class LitReader extends CommonReader {
 	}
 
 	private void readCAOL(RandomAccessFile input) throws IOException, FileFormatException {
-		checkHeader(input, HEADER_CAOL);
+		ReaderHelper.checkHeader(input, HEADER_CAOL);
 		
-		int version = readDWord(input);
+		int version = ReaderHelper.readDWord(input);
 		System.out.println("CAOL version: " + version);
 		if (version != 2) {
 			throw new FileFormatException("CAOL version " + version + " is unsupported");
 		}
 		
-		int caolSize = readDWord(input);
+		int caolSize = ReaderHelper.readDWord(input);
 		if (caolSize != 0x50) {
 			throw new FileFormatException("Bad CAOL length: " + caolSize);
 		}
 		
-		readDWord(input); // ??
-		readDWord(input); // 0 or 0x43ED
-		readDWord(input); // directory chunk size
-		readDWord(input); // directory index chunk size
-		readDWord(input); // field following chunk size
-		readDWord(input); // field following index chunk size
-		readDWord(input); // 0
-		readDWord(input); // 0
-		readDWord(input); // 0
+		ReaderHelper.readDWord(input); // ??
+		ReaderHelper.readDWord(input); // 0 or 0x43ED
+		ReaderHelper.readDWord(input); // directory chunk size
+		ReaderHelper.readDWord(input); // directory index chunk size
+		ReaderHelper.readDWord(input); // field following chunk size
+		ReaderHelper.readDWord(input); // field following index chunk size
+		ReaderHelper.readDWord(input); // 0
+		ReaderHelper.readDWord(input); // 0
+		ReaderHelper.readDWord(input); // 0
 		
 		readFormatHeader(input);
 	}
@@ -251,39 +253,39 @@ public class LitReader extends CommonReader {
 	private int readIFCM(RandomAccessFile input, int section) throws IOException, FileFormatException {
 		input.seek(getSectionOffset(section));
 
-		checkHeader(input, HEADER_DIRECTORY);
+		ReaderHelper.checkHeader(input, HEADER_DIRECTORY);
 
-		int version = readDWord(input);
+		int version = ReaderHelper.readDWord(input);
 		System.out.println("IFCM version: " + version);
 		if (version != 1) {
 			throw new FileFormatException("IFCM version " + version + " is unsupported");
 		}
 		
-		int chunkSize = readDWord(input);
-		readDWord(input); // 0x100000
-		readDWord(input); // -1
-		readDWord(input); // -1
-		int numberOfChunks = readDWord(input);
-		readDWord(input); // 0
+		int chunkSize = ReaderHelper.readDWord(input);
+		ReaderHelper.readDWord(input); // 0x100000
+		ReaderHelper.readDWord(input); // -1
+		ReaderHelper.readDWord(input); // -1
+		int numberOfChunks = ReaderHelper.readDWord(input);
+		ReaderHelper.readDWord(input); // 0
 		
 		System.out.format("%d chunk(s) of 0x%x bytes%n", numberOfChunks, chunkSize);
 		return numberOfChunks;
 	}
 
 	private void readListing(RandomAccessFile input, int chunk) throws IOException, FileFormatException {
-		checkHeader(input, HEADER_AOLL);
-		int freeSpace = readDWord(input);
+		ReaderHelper.checkHeader(input, HEADER_AOLL);
+		int freeSpace = ReaderHelper.readDWord(input);
 
 		long directoryOffset = getSectionOffset(SECTION_DIRECTORY) + 0x20;
 		long endPos = directoryOffset  + (chunk + 1)* directoryBlockSize - freeSpace; 
 
-		/* long chunkNumber = */readQWord(input);
-		/* long previousChunk = */readQWord(input);
-		/* long nextChunk = */readQWord(input);
+		/* long chunkNumber = */ReaderHelper.readQWord(input);
+		/* long previousChunk = */ReaderHelper.readQWord(input);
+		/* long nextChunk = */ReaderHelper.readQWord(input);
 		
-		/* long unk = */ readQWord(input);
-		/* int unk1 = */readDWord(input);
-		/* int unk2 = */readDWord(input);
+		/* long unk = */ ReaderHelper.readQWord(input);
+		/* int unk1 = */ReaderHelper.readDWord(input);
+		/* int unk2 = */ReaderHelper.readDWord(input);
 		
 		//System.out.println(previousChunk + " <-> " + nextChunk + " : " + unk);
 		

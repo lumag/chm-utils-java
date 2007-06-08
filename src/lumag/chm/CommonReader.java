@@ -8,7 +8,7 @@ import java.util.Map;
 
 import lumag.util.ReaderHelper;
 
-abstract class CommonReader extends ReaderHelper {
+abstract class CommonReader {
 
 	private static final byte[] HEADER_FILE = {'I', 'T', 'S', 'F'};
 	private static final byte[] HEADER_FILE_SECTION = {(byte) 0xfe, 0x01, 0x00, 0x00};
@@ -26,15 +26,15 @@ abstract class CommonReader extends ReaderHelper {
 	private String[] sectionNames;
 
 	protected void readFormatHeader(RandomAccessFile input) throws IOException, FileFormatException {
-		checkHeader(input, HEADER_FILE);
+		ReaderHelper.checkHeader(input, HEADER_FILE);
 		
-		int version = readDWord(input);
+		int version = ReaderHelper.readDWord(input);
 		System.out.println("ITSF Version: " + version);
 		if (version != 4 && version != 3 && version != 2) {
 			throw new FileFormatException("ITSF Version " + version + " is unsupported");
 		}
 
-		int headerLen = readDWord(input);
+		int headerLen = ReaderHelper.readDWord(input);
 //		System.out.println("Header len: " + headerLen);
 		if ((version == 2 && headerLen != 0x58) || 
 			(version == 3 && headerLen != 0x60) ||
@@ -42,19 +42,19 @@ abstract class CommonReader extends ReaderHelper {
 			throw new FileFormatException("bad section length");
 		}
 		
-		readDWord(input); // 1
+		ReaderHelper.readDWord(input); // 1
 		
 		if (version == 4) {
-			dataOffset = readQWord(input);
+			dataOffset = ReaderHelper.readQWord(input);
 		}
 		
-		readDWord(input); // time
+		ReaderHelper.readDWord(input); // time
 		
-		readDWord(input); // LCID
+		ReaderHelper.readDWord(input); // LCID
 		
 		if (version == 2 || version == 3) {
-			readGUID(input);
-			readGUID(input);
+			ReaderHelper.readGUID(input);
+			ReaderHelper.readGUID(input);
 		
 		
 			readSectionTable(input, 2);
@@ -63,7 +63,7 @@ abstract class CommonReader extends ReaderHelper {
 		if (version == 2) {
 			dataOffset = sectionOffsets[SECTION_INDEX] + sectionLengths[SECTION_INDEX];
 		} else if (version == 3) {
-			dataOffset = readQWord(input);
+			dataOffset = ReaderHelper.readQWord(input);
 		}
 	}
 
@@ -72,8 +72,8 @@ abstract class CommonReader extends ReaderHelper {
 		sectionLengths = new long[size];
 		
 		for (int i = 0; i < size; i++) {
-			sectionOffsets[i] = readQWord(input);
-			sectionLengths[i] = readQWord(input);
+			sectionOffsets[i] = ReaderHelper.readQWord(input);
+			sectionLengths[i] = ReaderHelper.readQWord(input);
 		}
 		
 		System.out.println("Offsets: " + Arrays.toString(sectionOffsets));
@@ -90,7 +90,7 @@ abstract class CommonReader extends ReaderHelper {
 
 	protected void readFileSizeSection(RandomAccessFile input) throws FileFormatException, IOException {
 		input.seek(sectionOffsets[SECTION_FILE_SIZE]);
-		checkHeader(input, HEADER_FILE_SECTION);
+		ReaderHelper.checkHeader(input, HEADER_FILE_SECTION);
 	
 		if (sectionLengths[SECTION_FILE_SIZE] < 0x18) {
 			throw new FileFormatException("FileSize section is too small");
@@ -98,24 +98,24 @@ abstract class CommonReader extends ReaderHelper {
 			System.out.format("Warning: extra %d bytes at the end of FileSize section%n", sectionLengths[SECTION_FILE_SIZE] - 0x18);
 		}
 	
-		int unk = readDWord(input); // mostly 0. One file with 1
+		int unk = ReaderHelper.readDWord(input); // mostly 0. One file with 1
 		if (unk != 0) {
 			System.out.println("Warning: unknown element expected to be zero: " + unk);
 		}
-		fileSize = readQWord(input);
+		fileSize = ReaderHelper.readQWord(input);
 		System.out.println("Expected file size: " + fileSize);
 	
-		readDWord(input); // 0
-		readDWord(input); // 0
+		ReaderHelper.readDWord(input); // 0
+		ReaderHelper.readDWord(input); // 0
 	
 	}
 
 	protected void readListingEntries(RandomAccessFile input, long endPos, Map<String, ListingEntry> list) throws IOException, FileFormatException {
 			while (input.getFilePointer() < endPos) {
-				String name = readString(input);
-				int section = (int) readCWord(input);
-				long offset = readCWord(input);
-				long len = readCWord(input);
+				String name = ReaderHelper.readString(input);
+				int section = (int) ReaderHelper.readCWord(input);
+				long offset = ReaderHelper.readCWord(input);
+				long len = ReaderHelper.readCWord(input);
 				list.put(name, new ListingEntry(name, section, offset, len));
 	//			System.out.println(name);
 			}
@@ -126,12 +126,12 @@ abstract class CommonReader extends ReaderHelper {
 	
 		input.seek(dataOffset + entry.offset);
 	
-		short len = readWord(input);
+		short len = ReaderHelper.readWord(input);
 		if (len * 2 != entry.length) {
 			throw new FileFormatException("Incorrect " + FILE_NAME_LIST + " length");
 		}
 		
-		short entries = readWord(input);
+		short entries = ReaderHelper.readWord(input);
 //		if (entries != 2) {
 //			System.out.println("Warning: more than two compression sections");
 //		}
@@ -139,12 +139,12 @@ abstract class CommonReader extends ReaderHelper {
 		sectionNames = new String[entries];
 		
 		for (int i = 0; i < entries; i++) {
-			short nameLen = readWord(input);
+			short nameLen = ReaderHelper.readWord(input);
 			char[] name = new char[nameLen];
 			for (int j = 0; j < nameLen; j++) {
-				name[j] = (char) readWord(input);
+				name[j] = (char) ReaderHelper.readWord(input);
 			}
-			readWord(input); // terminal zero
+			ReaderHelper.readWord(input); // terminal zero
 			sectionNames[i] = new String(name);
 		}
 		System.out.println(Arrays.toString(sectionNames));
