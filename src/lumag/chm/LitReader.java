@@ -1,10 +1,6 @@
 package lumag.chm;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 
@@ -46,40 +42,12 @@ public class LitReader extends CommonReader {
 			}
 		}
 	}
-	@SuppressWarnings("unused")
-	private void dump(String path) throws IOException, FileFormatException {
-		File parent = new File(path);
-		parent.mkdirs();
-		for (ListingEntry entry: listing.values()) {
-			File f = new File(parent, entry.name);
-			System.out.println(entry.name + ": " + entry.section + " @ " + entry.offset + " = " + entry.length);
-			f.getParentFile().mkdirs();
-			if (entry.name.charAt(entry.name.length() - 1) == '/') {
-				f.mkdir();
-			} else if (entry.section == 0) {
-				OutputStream output = new BufferedOutputStream(new FileOutputStream(f));
-				inputFile.seek(dataOffset + entry.offset);
-				long len = entry.length;
-				byte buf[] = new byte[1024];
-				while (len > 0) {
-					final int toRead = (int) (len > buf.length?
-											  buf.length:
-											  len);
-					inputFile.readFully(buf, 0, toRead);
-
-					output.write(buf, 0, toRead);
-					len -= toRead;
-				}
-				output.close();
-			}
-		}
-	}
 
 	private void read(RandomAccessFile input) throws IOException, FileFormatException {
 		readITOLITLS(input);
 		readSections(input);
 		
-		readNameList(input);
+		readContentData(input);
 	}
 
 	private void readITOLITLS(RandomAccessFile input) throws IOException, FileFormatException {
@@ -289,7 +257,7 @@ public class LitReader extends CommonReader {
 		
 		//System.out.println(previousChunk + " <-> " + nextChunk + " : " + unk);
 		
-		readListingEntries(input, endPos, listing);
+		readListingEntries(input, endPos);
 
 		input.skipBytes(freeSpace);
 	}

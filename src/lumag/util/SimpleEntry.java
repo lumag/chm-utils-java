@@ -45,7 +45,7 @@ class SimpleEntry<K, V> implements Map.Entry<K, V> {
 	@Override
 	public boolean equals(Object o) {
 		if (o instanceof SimpleEntry) {
-			SimpleEntry<?, ?> e1 = (SimpleEntry) o;
+			SimpleEntry<?, ?> e1 = (SimpleEntry<?, ?>) o;
 
 			if (key == null) {
 				if (e1.key != null) {

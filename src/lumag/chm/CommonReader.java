@@ -1,8 +1,17 @@
 package lumag.chm;
 
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Formatter;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -10,20 +19,53 @@ import lumag.util.ReaderHelper;
 
 abstract class CommonReader {
 
+	private static final String LZXC_GUID = "{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}";
+	private static final int GUID_LENGTH = 38;
 	private static final byte[] HEADER_FILE = {'I', 'T', 'S', 'F'};
 	private static final byte[] HEADER_FILE_SECTION = {(byte) 0xfe, 0x01, 0x00, 0x00};
-	protected static final int SECTION_FILE_SIZE = 0;
+	private static final int SECTION_FILE_SIZE = 0;
 	protected static final int SECTION_INDEX = 1;
+
+	private static final String CONTENT_UNCOMPRESSED = "Uncompressed";
 	private static final String FILE_NAME_LIST = "::DataSpace/NameList";
+	private static final String FILE_TRANSFORM_LIST = "::DataSpace/Storage/%s/Transform/List"; 
+	private static final String FILE_CONTROL_DATA = "::DataSpace/Storage/%s/ControlData";
+	private static final String FILE_CONTENT = "::DataSpace/Storage/%s/Content";
+	private static final String FILE_TRANSFORM_INSTANCE_DATA = "::DataSpace/Storage/%s/Transform/%s/InstanceData/";
+	private static final String LZXC_BAD_GUID = new String(
+			new byte[] {'{', 0, '7', 0, 'F', 0, 'C', 0, '2', 0, '8', 0, '9', 0, '4', 0, '0', 0, '-', 0,
+						'9', 0, 'D', 0, '3', 0, '1', 0, '-', 0, '1', 0, '1', 0, 'D', 0, '0', 0}); 
+
+	private class Content {
+		private final String name;
+		private IDataStorage reader;
+
+		public Content(String name,
+				IDataStorage reader) {
+			this.name = name;
+			this.reader = reader;
+		}
+		
+		@Override
+		public String toString() {
+			return name;
+		}
+		
+		public String getName() {
+			return name;
+		}
+	}
 
 	@SuppressWarnings("unused")
 	private long fileSize;
 	protected long dataOffset;
-	
+
 	private long[] sectionOffsets;
 	private long[] sectionLengths;
-	protected Map<String, ListingEntry> listing = new LinkedHashMap<String, ListingEntry>();
-	private String[] sectionNames;
+	
+	private Content[] content;
+
+	private Map<String, ListingEntry> listing = new LinkedHashMap<String, ListingEntry>();
 
 	protected void readFormatHeader(RandomAccessFile input) throws IOException, FileFormatException {
 		ReaderHelper.checkHeader(input, HEADER_FILE);
@@ -110,24 +152,24 @@ abstract class CommonReader {
 	
 	}
 
-	protected void readListingEntries(RandomAccessFile input, long endPos, Map<String, ListingEntry> list) throws IOException, FileFormatException {
+	protected void readListingEntries(RandomAccessFile input, long endPos) throws IOException, FileFormatException {
 			while (input.getFilePointer() < endPos) {
 				String name = ReaderHelper.readString(input);
 				int section = (int) ReaderHelper.readCWord(input);
 				long offset = ReaderHelper.readCWord(input);
 				long len = ReaderHelper.readCWord(input);
-				list.put(name, new ListingEntry(name, section, offset, len));
+				listing.put(name, new ListingEntry(name, section, offset, len));
 	//			System.out.println(name);
 			}
 		}
 
-	protected void readNameList(RandomAccessFile input) throws IOException, FileFormatException {
-		ListingEntry entry = listing.get(FILE_NAME_LIST);
+	protected void readContentData(RandomAccessFile input) throws IOException, FileFormatException {
+		ListingEntry nameList = listing.get(FILE_NAME_LIST);
 	
-		input.seek(dataOffset + entry.offset);
+		input.seek(dataOffset + nameList.offset);
 	
 		short len = ReaderHelper.readWord(input);
-		if (len * 2 != entry.length) {
+		if (len * 2 != nameList.length) {
 			throw new FileFormatException("Incorrect " + FILE_NAME_LIST + " length");
 		}
 		
@@ -136,7 +178,7 @@ abstract class CommonReader {
 //			System.out.println("Warning: more than two compression sections");
 //		}
 		
-		sectionNames = new String[entries];
+		content = new Content[entries];
 		
 		for (int i = 0; i < entries; i++) {
 			short nameLen = ReaderHelper.readWord(input);
@@ -145,9 +187,127 @@ abstract class CommonReader {
 				name[j] = (char) ReaderHelper.readWord(input);
 			}
 			ReaderHelper.readWord(input); // terminal zero
-			sectionNames[i] = new String(name);
+			String sName = new String(name);
+			IDataStorage data;
+			if (i == 0) {
+				data = new DirectStorage(input, dataOffset, fileSize - dataOffset);
+			} else {
+				Formatter fmt = new Formatter();
+				fmt.format(FILE_CONTENT, sName);
+				ListingEntry entry = listing.get(fmt.toString());
+				fmt.close();
+				
+				if (entry == null) {
+					throw new FileFormatException("No Content for " + sName);
+				}
+
+				data = new DirectStorage(input, dataOffset + entry.offset, entry.length);
+			}
+			content[i] = new Content(sName, data);
 		}
-		System.out.println(Arrays.toString(sectionNames));
+		System.out.println(Arrays.toString(content));
+		
+		for (Content cnt: content) {
+			String name = cnt.getName();
+			if (CONTENT_UNCOMPRESSED.equals(name)) {
+				continue;
+			}
+			
+			Formatter fmt;
+
+			fmt = new Formatter();
+			fmt.format(FILE_CONTROL_DATA, name);
+			byte[] controlData = getFile(fmt.toString());
+			fmt.close();
+
+			int controlDataOffset = 0;
+			
+			fmt = new Formatter();
+			fmt.format(FILE_TRANSFORM_LIST, name);
+			byte[] transforms = getFile(fmt.toString());
+			fmt.close();
+			
+			// FIXME: check that for .lit it's still 38!
+			for (int i = 0; i < transforms.length / GUID_LENGTH; i++) {
+				int cdSize = ReaderHelper.getDWord(controlData, controlDataOffset);
+				controlDataOffset += 4;
+				if (cdSize > controlData.length - controlDataOffset) {
+					throw new FileFormatException("Bad transformation control data");
+				}
+				int newControlDataOffset = controlDataOffset + cdSize*4;
+				byte[] cd = Arrays.copyOfRange(controlData, controlDataOffset, newControlDataOffset);
+				
+				String guid = new String(transforms, i * GUID_LENGTH, GUID_LENGTH);
+				if (LZXC_BAD_GUID.equals(guid)) {
+					guid = LZXC_GUID;
+				}
+
+				Map<String, byte[]> files = new HashMap<String, byte[]>();
+				fmt = new Formatter();
+				fmt.format(FILE_TRANSFORM_INSTANCE_DATA, name, guid);
+				String prefix = fmt.toString();
+				int prefixLen = prefix.length();
+				fmt.close();
+
+				for (ListingEntry entry: listing.values()) {
+					if (entry.name.startsWith(prefix)) {
+						files.put(entry.name.substring(prefixLen), getFile(entry));
+					}
+				}
+
+				// FIXME: Select correct transformation based on the GUID
+				ITransformation transform = new LZXCTransformation();
+				transform.init(cd, files , cnt.reader);
+				cnt.reader = transform;
+				
+				controlDataOffset = newControlDataOffset;
+			}
+
+			if (controlData.length != controlDataOffset) {
+				throw new FileFormatException("Extra data at the end of transformation control data");
+			}
+		}
+	}
+	
+	public ListingEntry getFileEntry(String name) {
+		return listing.get(name);
+	}
+
+	public Collection<ListingEntry> getFiles() {
+		return Collections.unmodifiableCollection(listing.values());
+	}
+	
+	public byte[] getFile(String name) throws IOException, FileFormatException {
+		ListingEntry entry = getFileEntry(name);
+		
+		if (entry == null) {
+			throw new FileNotFoundException();
+		}
+
+		return getFile(entry);
+	}
+
+	private byte[] getFile(ListingEntry entry) throws FileFormatException {
+		return content[entry.section].reader.getData(entry.offset, (int) entry.length);
+	}
+
+	@SuppressWarnings("unused")
+	protected void dump(String path) throws IOException, FileFormatException {
+		File parent = new File(path);
+		parent.mkdirs();
+		for (ListingEntry entry: getFiles()) {
+			File f = new File(parent, entry.name);
+			System.out.println(entry.name + ": " + entry.section + " @ " + entry.offset + " = " + entry.length);
+			f.getParentFile().mkdirs();
+			if (entry.name.charAt(entry.name.length() - 1) == '/') {
+				f.mkdir();
+			} else {
+				byte[] data = getFile(entry.name);
+				OutputStream output = new BufferedOutputStream(new FileOutputStream(f));
+				output.write(data);
+				output.close();
+			}
+		}
 	}
 
 }

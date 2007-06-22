@@ -1,21 +1,12 @@
 package lumag.chm;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 
 import lumag.util.ReaderHelper;
 
 public class CHMReader extends CommonReader {
-	private static final String FILE_RESET_TABLE = "::DataSpace/Storage/MSCompressed/Transform/{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}/InstanceData/ResetTable";
-	private static final String FILE_CONTROL_DATA = "::DataSpace/Storage/MSCompressed/ControlData";
-	private static final String FILE_CONTENT = "::DataSpace/Storage/MSCompressed/Content";
-
 	private static final byte[] HEADER_INDEX_SECTION = {'I', 'T', 'S', 'P'};
 	private static final byte[] HEADER_PMGL = {'P', 'M', 'G', 'L'};
 	
@@ -23,19 +14,17 @@ public class CHMReader extends CommonReader {
 	private long directoryOffset;
 	
 	private RandomAccessFile inputFile;
-	private LZXCState lzxcState;
 
 	public CHMReader(String name) throws IOException, FileFormatException {
 		System.out.println("CHM file " + name);
 		inputFile = new RandomAccessFile(name, "r");
-		lzxcState = new LZXCState();
 		read(inputFile);
 	}
 
 	public static void main(String[] args) {
 		for (String name: args) {
 			try {
-				CHMReader reader = new CHMReader(name);
+				CommonReader reader = new CHMReader(name);
 //				reader.decodeContent(reader.inputFile, "test/decoded_content_file");
 				reader.dump("test");
 			} catch (Exception e) {
@@ -44,51 +33,12 @@ public class CHMReader extends CommonReader {
 		}
 	}
 	
-	@SuppressWarnings("unused")
-	private void dump(String path) throws IOException, FileFormatException {
-		File parent = new File(path);
-		parent.mkdirs();
-		for (ListingEntry entry: listing.values()) {
-			File f = new File(parent, entry.name);
-			System.out.println(entry.name + ": " + entry.section + " @ " + entry.offset + " = " + entry.length);
-			f.getParentFile().mkdirs();
-			if (entry.name.charAt(entry.name.length() - 1) == '/') {
-				f.mkdir();
-			} else if (entry.section == 0) {
-				OutputStream output = new BufferedOutputStream(new FileOutputStream(f));
-				inputFile.seek(dataOffset + entry.offset);
-				long len = entry.length;
-				byte buf[] = new byte[1024];
-				while (len > 0) {
-					final int toRead = (int) (len > buf.length?
-											  buf.length:
-											  len);
-					inputFile.readFully(buf, 0, toRead);
-
-					output.write(buf, 0, toRead);
-					len -= toRead;
-				}
-				output.close();
-			} else {
-				byte[] data = getFile(entry.name);
-				OutputStream output = new BufferedOutputStream(new FileOutputStream(f));
-				output.write(data);
-				output.close();
-			}
-		}
-	}
-
 	private void read(RandomAccessFile input) throws IOException, FileFormatException {
 		readFormatHeader(input);
 		readFileSizeSection(input);
 		readIndexSection(input);
 
-		ListingEntry entry = listing.get(FILE_CONTENT);
-		lzxcState.setContentOffset(dataOffset + entry.offset);
-
-		readNameList(input);
-		readResetTable(input);
-		readControlData(input);
+		readContentData(input);
 	}
 
 	private void readIndexSection(RandomAccessFile input) throws IOException, FileFormatException {
@@ -181,7 +131,7 @@ public class CHMReader extends CommonReader {
 		
 		//System.out.println(previousChunk + " <-> " + nextChunk);
 		
-		readListingEntries(input, endPos, listing);
+		readListingEntries(input, endPos);
 
 		input.skipBytes(freeSpace);
 	}
@@ -189,65 +139,6 @@ public class CHMReader extends CommonReader {
 	private void readIndex(RandomAccessFile input, int chunk) throws IOException {
 		// just skip bytes. We don't use index
 		input.skipBytes(directoryBlockSize);
-	}
-
-	private void readResetTable(RandomAccessFile input) throws FileFormatException, IOException {
-		ListingEntry entry = listing.get(FILE_RESET_TABLE);
-		if (entry == null || entry.section != 0 || entry.length < 0x30) {
-			throw new FileFormatException("Bad ResetTable file");
-		}
-		
-		input.seek(dataOffset + entry.offset);
-
-		lzxcState.readResetTable(input);
-	}	
-	
-	private void readControlData(RandomAccessFile input) throws FileFormatException, IOException {
-		ListingEntry entry = listing.get(FILE_CONTROL_DATA);
-		if (entry == null || entry.section != 0 || entry.length < 0x1c) {
-			throw new FileFormatException("Bad ControlData file: " + entry);
-		}
-		
-		input.seek(dataOffset + entry.offset);
-
-		lzxcState.readControlData(input);
-	}
-	
-	
-	public byte[] getFile(String name) throws IOException, FileFormatException {
-		ListingEntry entry = listing.get(name);
-		
-		if (entry == null) {
-			throw new FileNotFoundException();
-		}
-		
-		
-		int startBlock = (int) (entry.offset / 0x8000);
-		int startOffset = (int) (entry.offset % 0x8000);
-		int endBlock = (int) ((entry.offset + entry.length - 1) / 0x8000);
-		
-		final int length = (int) entry.length;
-		
-		byte[] block = lzxcState.getBlock(inputFile, startBlock);
-		if (startBlock == endBlock) {
-			return Arrays.copyOfRange(block, startOffset, startOffset + length);
-		}
-
-		byte[] data = new byte[length];
-		int filled = block.length - startOffset;
-		System.arraycopy(block, startOffset, data, 0, filled);
-
-		
-		for (int i = startBlock+1; i < endBlock; i++) {
-			block = lzxcState.getBlock(inputFile, i);
-			System.arraycopy(block, 0, data, filled, block.length);
-			filled += block.length;
-		}
-		
-		block = lzxcState.getBlock(inputFile, endBlock);
-		System.arraycopy(block, 0, data, filled, length - filled);
-		
-		return data;
 	}
 
 }

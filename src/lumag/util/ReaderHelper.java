@@ -13,15 +13,19 @@ public class ReaderHelper {
 		
 		input.readFully(data);
 		
-		return	
-				(((long) data[0] & 0xff) << (0 * 8)) | 
-				(((long) data[1] & 0xff) << (1 * 8)) |
-				(((long) data[2] & 0xff) << (2 * 8)) |
-				(((long) data[3] & 0xff) << (3 * 8)) | 
-				(((long) data[4] & 0xff) << (4 * 8)) |
-				(((long) data[5] & 0xff) << (5 * 8)) |
-				(((long) data[6] & 0xff) << (6 * 8)) |
-				(((long) data[7] & 0xff) << (7 * 8));
+		return getQWord(data, 0);
+	}
+
+	public static long getQWord(byte[] data, int offset) {
+		return 
+			(((long) data[offset + 0] & 0xff) << (0 * 8)) | 
+			(((long) data[offset + 1] & 0xff) << (1 * 8)) |
+			(((long) data[offset + 2] & 0xff) << (2 * 8)) |
+			(((long) data[offset + 3] & 0xff) << (3 * 8)) | 
+			(((long) data[offset + 4] & 0xff) << (4 * 8)) |
+			(((long) data[offset + 5] & 0xff) << (5 * 8)) |
+			(((long) data[offset + 6] & 0xff) << (6 * 8)) |
+			(((long) data[offset + 7] & 0xff) << (7 * 8));
 	}
 
 	public static int readDWord(DataInput input) throws IOException {
@@ -29,11 +33,15 @@ public class ReaderHelper {
 		
 		input.readFully(data);
 		
-		return	
-				((data[0] & 0xff) << (0 * 8)) | 
-				((data[1] & 0xff) << (1 * 8)) |
-				((data[2] & 0xff) << (2 * 8)) |
-				((data[3] & 0xff) << (3 * 8));
+		return getDWord(data, 0);
+	}
+
+	public static int getDWord(byte[] data, int offset) {
+		return
+			((data[offset + 0] & 0xff) << (0 * 8)) | 
+			((data[offset + 1] & 0xff) << (1 * 8)) |
+			((data[offset + 2] & 0xff) << (2 * 8)) |
+			((data[offset + 3] & 0xff) << (3 * 8));
 	}
 
 	public static short readWord(DataInput input) throws IOException {
