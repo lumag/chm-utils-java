@@ -1,14 +1,16 @@
 package lumag.chm;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+import lumag.util.BasicReader;
 import lumag.util.FixedSizeCache;
-import lumag.util.ReaderHelper;
 
 public class LZXCTransformation implements ITransformation {
 
 	private static final String RESET_TABLE = "ResetTable";
+	private static final byte[] LZXC_SIGNATURE = new byte[]{'L', 'Z', 'X', 'C'};
 	private FixedSizeCache<Integer, byte[]> blockCache = new FixedSizeCache<Integer, byte[]>();
 	private int lastBlock = -1;
 	private long[] resets;
@@ -20,9 +22,8 @@ public class LZXCTransformation implements ITransformation {
 	private LZXDecompressor decompressor;
 	private IDataStorage parent;
 	
-	@Override
 	public void init(byte[] controlData, Map<String, byte[]> data,
-			IDataStorage link) throws FileFormatException {
+			IDataStorage link) throws FileFormatException, IOException {
 		this.parent = link;
 		processControlData(controlData);
 
@@ -32,49 +33,44 @@ public class LZXCTransformation implements ITransformation {
 		processResetTable(data.get(RESET_TABLE));
 
 		decompressor = new LZXDecompressor(windowSize);
-
 	}
 
 	private void processControlData(byte[] controlData)
-			throws FileFormatException {
-		if (controlData.length != 6*4) {
+			throws FileFormatException, IOException {
+		// FIXME: make this check dependant on the GUID
+		if (controlData.length != 6*4 && controlData.length != 7*4) {
 			throw new FileFormatException("Bad size of ControlData: " + controlData.length);
 		}
-
-		if (controlData[0] != 'L' ||
-			controlData[1] != 'Z' ||
-			controlData[2] != 'X' ||
-			controlData[3] != 'C') {
+		BasicReader reader = new BasicReader(controlData);
+		
+		byte[] signature = reader.read(4);
+		
+		if (!Arrays.equals(signature, LZXC_SIGNATURE)) {
 			throw new FileFormatException("Bad control data header");
 		}
 
-		int offset = 4;
-		int version = ReaderHelper.getDWord(controlData, offset);
-		offset += 4;
+		int version = reader.readDWord();
 		System.out.println("ControlcontrolData Version: " + version);
-		if (version != 2) {
+		// FIXME: make this check dependant on the GUID
+		if (version != 2 && version != 3) {
 			throw new FileFormatException("ControlcontrolData Version " + version + " is unsupported");
 		}
 
-		resetInterval = ReaderHelper.getDWord(controlData, offset);
-		offset += 4;
-		windowSize = ReaderHelper.getDWord(controlData, offset);
-		offset += 4;
-		int cacheSize = ReaderHelper.getDWord(controlData, offset);
-		offset += 4;
+		resetInterval = reader.readDWord();
+		windowSize = reader.readDWord();
+		int cacheSize = reader.readDWord();
 
 		System.out.println("Resets parameters: " + resetInterval + ", " + windowSize + ", " + cacheSize);
 		if (resetInterval % (windowSize / 2) != 0) {
 			throw new FileFormatException("Unsupported reset interval value");
 		}
 
-		int unk = ReaderHelper.getDWord(controlData, offset);
-		offset += 4;
+		int unk = reader.readDWord();
 		if (unk != 0) {
 			System.out.println("Warning: unknown element expected to be zero: " + unk);
 		}
 
-		if (version == 2) {
+		if (version == 2 || version == 3) {
 			resetInterval *= 0x8000;
 			windowSize *= 0x8000;
 		}
@@ -82,49 +78,46 @@ public class LZXCTransformation implements ITransformation {
 		System.out.println("ResetBlockInterval: " + resetBlockInterval);
 	}
 	
-	private void processResetTable(byte[] data) throws FileFormatException {
-		int offset = 0;
+	private void processResetTable(byte[] data) throws FileFormatException, IOException {
+		if (data.length == 0) {
+			System.out.println("Empty reset table");
+			return;
+		}
+		BasicReader reader = new BasicReader(data);
 
-		int version = ReaderHelper.getDWord(data, offset);
-		offset += 4;
+		int version = reader.readDWord();
 		System.out.println("ResetTable Version: " + version);
-		if (version != 2) {
+		// FIXME: make this check dependant on the GUID
+		if (version != 2 && version != 3) {
 			throw new FileFormatException("ResetTable Version " + version + " is unsupported");
 		}
 		
-		int resetNum = ReaderHelper.getDWord(data, offset);
-		offset += 4;
+		int resetNum = reader.readDWord();
 		System.out.println(resetNum + " entries in ResetTable");
 		resets = new long[resetNum];
 
-		int entrySize = ReaderHelper.getDWord(data, offset);
-		offset += 4;
+		int entrySize = reader.readDWord();
 		if (entrySize != 8) {
 			throw new FileFormatException("Size of ResetTable entry isn't 8 (" + entrySize + ")");
 		}
 		
-		int headerSize = ReaderHelper.getDWord(data, offset);
-		offset += 4;
+		int headerSize = reader.readDWord();
 		if (headerSize != 0x28) {
 			throw new FileFormatException("Unsupported ResetTable header size: " + headerSize);
 		}
 		
-		uncompressedLength = ReaderHelper.getQWord(data, offset);
-		offset += 8;
-		compressedLength = ReaderHelper.getQWord(data, offset);
-		offset += 8;
+		uncompressedLength = reader.readQWord();
+		compressedLength = reader.readQWord();
 		
 		System.out.format("Content compression 0x%x -> 0x%x%n", uncompressedLength, compressedLength);
 		
-		long blockSize = ReaderHelper.getQWord(data, offset);
-		offset += 8;
+		long blockSize = reader.readQWord();
 		if (blockSize != 0x8000) {
 			throw new FileFormatException("BlockSize isn't 0x8000: " + blockSize);
 		}
 		
 		for (int i = 0; i < resetNum; i++) {
-			resets[i] = ReaderHelper.getQWord(data, offset);
-			offset += 8;
+			resets[i] = reader.readQWord();
 		}
 	}
 
@@ -190,7 +183,6 @@ public class LZXCTransformation implements ITransformation {
 		return block;
 	}
 
-	@Override
 	public byte[] getData(long offset, int length) throws FileFormatException {
 		int startBlock = (int) (offset / 0x8000);
 		int startOffset = (int) (offset % 0x8000);

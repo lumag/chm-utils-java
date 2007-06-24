@@ -74,7 +74,7 @@ public class LZXDecompressor {
 
 	public LZXDecompressor(int wnd) {
 		if (wnd < (1 << 15) || wnd > (1 << 21)) {
-			throw new IllegalArgumentException("Bad window size");
+			throw new IllegalArgumentException("Bad window size: " + wnd + " (" + log2(wnd) + ")");
 		}
 
 		windowSize = wnd;
