@@ -79,13 +79,23 @@ public class Crypto {
 		Key key = new SecretKeySpec(bkey, "DES");
 		mdes.engineInit(Cipher.DECRYPT_MODE, key, null);
 
-		file = new RandomAccessFile("test_lit/::DataSpace/Storage/EbEncryptOnlyDS/Content", "r");
+		file = new RandomAccessFile("test_lit/__DataSpace/Storage/EbEncryptOnlyDS/Content", "r");
 		buf = new byte[(int) file.length()];
 		file.readFully(buf);
 		file.close();
 
 		out = mdes.engineDoFinal(buf, 0, buf.length);
 		System.out.println(new String(out));
+		
+		file = new RandomAccessFile("test_lit/__DataSpace/Storage/EbEncryptDS/Content", "r");
+		buf = new byte[(int) file.length()];
+		file.readFully(buf);
+		file.close();
+
+		out = mdes.engineDoFinal(buf, 0, buf.length);
+		file = new RandomAccessFile("test_lit/__Content", "rw");
+		file.write(out);
+		file.close();
 	}
 
 }
