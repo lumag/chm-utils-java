@@ -135,11 +135,11 @@ public class LZXCTransformation implements ITransformation {
 		}
 		
 		for (int i = startBlock; i < blockNo; i++) {
-			System.out.println("Extra: " + i);
+//			System.out.println("Extra: " + i);
 			decodeBlock(i);
 		}
 
-		System.out.println("Decoding: " + blockNo);
+//		System.out.println("Decoding: " + blockNo);
 		return decodeBlock(blockNo);
 	}
 
@@ -158,7 +158,7 @@ public class LZXCTransformation implements ITransformation {
 //
 	private byte[] decodeBlock(int blockNumber) throws FileFormatException {
 		if (blockNumber % resetBlockInterval == 0) {
-			System.out.println("Reset: " + blockNumber);
+//			System.out.println("Reset: " + blockNumber);
 			decompressor.reset();
 		} else if (lastBlock != -1 && lastBlock != blockNumber - 1) {
 			throw new IllegalStateException("Incorrect block decoding order: " + lastBlock + " -> " + blockNumber);
@@ -173,7 +173,7 @@ public class LZXCTransformation implements ITransformation {
 			compBlockLen = (int) (compressedLength - resets[blockNumber]);
 			uncompBlockLen = (int) (uncompressedLength % 0x8000);
 		}
-		System.out.format("Decode %d %04x %04x%n", blockNumber, compBlockLen, uncompBlockLen);
+//		System.out.format("Decode %d %04x %04x%n", blockNumber, compBlockLen, uncompBlockLen);
 		byte[] inp = parent.getData(resets[blockNumber], compBlockLen);
 
 		byte[] block =  decompressor.decode(inp, uncompBlockLen);
