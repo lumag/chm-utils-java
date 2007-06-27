@@ -133,44 +133,52 @@ public class BasicReader {
 		fill(len);
 
 		StringBuilder builder = new StringBuilder();
-		int ucs32 = 0;
-		for (int i = 0, left = 0; i < len; i++) {
-			int c = data[offset ++] & 0xff;
-			if (left == 0) {
-				if ((c & 0x80) == 0) {
-					ucs32 = c & 0x7f;
-				} else if ((c & 0x40) == 0 || c == 0xff || c == 0xfe) {
-					throw new IllegalArgumentException("Bad UTF-8 String!!!");
-				} else if ((c & 0x20) == 0) {
-					left = 1;
-					ucs32 = c & 0x1f;
-				} else if ((c & 0x10) == 0) {
-					left = 2;
-					ucs32 = c & 0x0f;
-				} else if ((c & 0x08) == 0) {
-					left = 3;
-					ucs32 = c & 0x07; 
-				} else if ((c & 0x04) == 0) {
-					left = 4;
-					ucs32 = c & 0x03;
-				} else if ((c & 0x02) == 0) {
-					left = 5;
-					ucs32 = c & 0x01;
-				}
-			} else { // left != 0
-				left --;
-				if ((c & 0xc0) != 0x80) {
-					throw new IllegalArgumentException("Bad UTF-8 String!!!");
-				}
-				ucs32 = (ucs32 << 6) | (c & 0x3f);
-			}
-			
-			if (left == 0) {
-				builder.append(Character.toChars(ucs32));
-			}
+		for (int i = 0; i < len; i++) {
+			int ucs32 = readUtf8Char();
+			builder.append(Character.toChars(ucs32));
 		}
 		String str = builder.toString();
 		return str;
+	}
+
+	public int readUtf8Char() throws IOException {
+		int ucs32 = 0;
+
+		int left;
+		byte c = readByte();
+		if ((c & 0x80) == 0) {
+			left = 0;
+			ucs32 = c & 0x7f;
+		} else if ((c & 0x40) == 0) {
+			throw new IllegalArgumentException("Bad UTF-8 String!!!");
+		} else if ((c & 0x20) == 0) {
+			left = 1;
+			ucs32 = c & 0x1f;
+		} else if ((c & 0x10) == 0) {
+			left = 2;
+			ucs32 = c & 0x0f;
+		} else if ((c & 0x08) == 0) {
+			left = 3;
+			ucs32 = c & 0x07; 
+		} else if ((c & 0x04) == 0) {
+			left = 4;
+			ucs32 = c & 0x03;
+		} else if ((c & 0x02) == 0) {
+			left = 5;
+			ucs32 = c & 0x01;
+		} else {
+			throw new IllegalArgumentException("Bad UTF-8 String!!!");
+		}
+
+		for (; left > 0; left --) {
+			c = readByte();
+			if ((c & 0xc0) != 0x80) {
+				throw new IllegalArgumentException("Bad UTF-8 String!!!");
+			}
+			ucs32 = (ucs32 << 6) | (c & 0x3f);
+		}
+		
+		return ucs32;
 	}
 
 	public String readGUID() throws IOException {
