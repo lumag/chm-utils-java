@@ -43,12 +43,12 @@ abstract class CommonReader {
 
 	private class Content {
 		private final String name;
-		private IDataStorage reader;
+		private IDataStorage storage;
 
 		public Content(String name,
 				IDataStorage reader) {
 			this.name = name;
-			this.reader = reader;
+			this.storage = reader;
 		}
 		
 		@Override
@@ -268,8 +268,8 @@ abstract class CommonReader {
 					continue;
 				}
 				ITransformation transform = new LZXCTransformation();
-				transform.init(cd, files , cnt.reader);
-				cnt.reader = transform;
+				transform.init(cd, files , cnt.storage);
+				cnt.storage = transform;
 				
 			}
 
@@ -295,7 +295,7 @@ abstract class CommonReader {
 	}
 
 	private byte[] getFile(ListingEntry entry) throws FileFormatException {
-		return content[entry.section].reader.getData(entry.offset, (int) entry.length);
+		return content[entry.section].storage.getData(entry.offset, (int) entry.length);
 	}
 
 	@SuppressWarnings("unused")
