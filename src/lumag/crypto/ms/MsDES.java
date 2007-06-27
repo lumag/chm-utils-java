@@ -16,7 +16,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 
-public class MsDES extends CipherSpi {
+public final class MsDES extends CipherSpi {
 	private static final int KEY_SIZE = 8;
 	private static final int BLOCK_SIZE = 64;
 
@@ -201,7 +201,7 @@ public class MsDES extends CipherSpi {
 	private int bPos;
 
 	@Override
-	public byte[] engineDoFinal(byte[] input, int inputOffset, int inputLength)
+	protected byte[] engineDoFinal(byte[] input, int inputOffset, int inputLength)
 			throws IllegalBlockSizeException, BadPaddingException {
 		byte[] out = engineUpdate(input, inputOffset, inputLength);
 
@@ -254,7 +254,7 @@ public class MsDES extends CipherSpi {
 	}
 
 	@Override
-	public void engineInit(int opmode, Key key, SecureRandom random)
+	protected void engineInit(int opmode, Key key, SecureRandom random)
 			throws InvalidKeyException {
 		this.workingMode = opmode;
 		byte[] kb;

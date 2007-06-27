@@ -10,7 +10,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
 import lumag.crypto.ms.MsAlgorithms;
-import lumag.crypto.ms.MsDES;
+import lumag.util.CipherAdapter;
 
 
 public class Crypto {
@@ -64,27 +64,30 @@ public class Crypto {
 
 		byte[] out;
 
-//		Cipher des = Cipher.getInstance("MS-DES", "MsAlgorithms");
-//		des.init(Cipher.DECRYPT_MODE, key);
-//		out = des.doFinal(buf);
+		CipherAdapter decoder;
+		try {
+			Cipher des = Cipher.getInstance("MS-DES", "MsAlgorithms");
+			decoder = CipherAdapter.newAdapter(des);
+		} catch (SecurityException e) {
+			decoder = CipherAdapter.newMsDesAdapter();
+		}
+
+		decoder.init(Cipher.DECRYPT_MODE, tempkey);
 		
-		MsDES mdes = new MsDES();
-		mdes.engineInit(Cipher.DECRYPT_MODE, tempkey, null);
-		out = mdes.engineDoFinal(buf, 0, buf.length);
+		out = decoder.doFinal(buf);
 
 		System.out.println(Arrays.toString(out));
 		
 		byte[] bkey = Arrays.copyOfRange(out, 1, 9);
-		mdes = new MsDES();
 		Key key = new SecretKeySpec(bkey, "DES");
-		mdes.engineInit(Cipher.DECRYPT_MODE, key, null);
+		decoder.init(Cipher.DECRYPT_MODE, key);
 
 		file = new RandomAccessFile("test_lit/__DataSpace/Storage/EbEncryptOnlyDS/Content", "r");
 		buf = new byte[(int) file.length()];
 		file.readFully(buf);
 		file.close();
 
-		out = mdes.engineDoFinal(buf, 0, buf.length);
+		out = decoder.doFinal(buf);
 		System.out.println(new String(out));
 		
 		file = new RandomAccessFile("test_lit/__DataSpace/Storage/EbEncryptDS/Content", "r");
@@ -92,7 +95,7 @@ public class Crypto {
 		file.readFully(buf);
 		file.close();
 
-		out = mdes.engineDoFinal(buf, 0, buf.length);
+		out = decoder.doFinal(buf);
 		file = new RandomAccessFile("test_lit/__Content", "rw");
 		file.write(out);
 		file.close();
