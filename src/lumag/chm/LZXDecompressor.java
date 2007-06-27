@@ -521,16 +521,21 @@ public class LZXDecompressor {
 
 				if (src < 0 && matchLength > 0) {
 					int tempLen = (matchLength + src > 0)? -src : matchLength;
-					System.arraycopy(window, windowSize + src, window, dest, tempLen);
-					src += tempLen;
-					dest += tempLen;
+					// don't use System.arraycopy here!
+					for (int i = 0; i < tempLen; i++) {
+						window[dest] = window[windowSize + src];
+						dest ++;
+						src ++;
+					}
 					matchLength -= tempLen;
 				}
 
-				System.arraycopy(window, src, window, dest, matchLength);
-				src += matchLength;
-				dest += matchLength;
-
+				// don't use System.arraycopy here!
+				for (int i = 0; i < matchLength; i++) {
+					window[dest] = window[src];
+					dest ++;
+					src ++;
+				}
 			}
 		}
 	}
