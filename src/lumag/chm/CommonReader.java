@@ -18,7 +18,6 @@ import java.util.Map;
 import lumag.util.BasicReader;
 
 abstract class CommonReader {
-
 	private static final int GUID_LENGTH = 16;
 	private static final byte[] HEADER_FILE = {'I', 'T', 'S', 'F'};
 	private static final byte[] HEADER_FILE_SECTION = {(byte) 0xfe, 0x01, 0x00, 0x00};
@@ -261,14 +260,17 @@ abstract class CommonReader {
 					}
 				}
 
-				// FIXME: Select correct transformation based on the GUID
-				if (!guid.equals("{0A9007C6-4076-11D3-8789-0000F8105754}")
-				 && !guid.equals("{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}")) {
+				ITransformation transform;
+				if (guid.equals("{0A9007C6-4076-11D3-8789-0000F8105754}") ||
+				    guid.equals("{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}")) {
+					transform = new LZXCTransformation();
+				} else if (guid.equals("{67F6E4A2-60BF-11D3-8540-00C04F58C3CF}")) {
+					transform = new MsDesTransformation();
+				} else {
 					System.out.println("Unsupported GUID: " + guid);
 					continue;
 				}
-				ITransformation transform = new LZXCTransformation();
-				transform.init(cd, files , cnt.storage);
+				transform.init(this, cnt.storage , guid, cd, files);
 				cnt.storage = transform;
 				
 			}
@@ -312,7 +314,7 @@ abstract class CommonReader {
 			if (entry.name.charAt(entry.name.length() - 1) == '/') {
 				f.mkdir();
 				// FIXME
-			} else if (entry.section < 2) {
+			} else {
 				byte[] data = getFile(entry.name);
 				OutputStream output = new BufferedOutputStream(new FileOutputStream(f));
 				output.write(data);

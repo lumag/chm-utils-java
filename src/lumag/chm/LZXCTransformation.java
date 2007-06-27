@@ -22,9 +22,9 @@ public class LZXCTransformation implements ITransformation {
 	private LZXDecompressor decompressor;
 	private IDataStorage parent;
 	
-	public void init(byte[] controlData, Map<String, byte[]> data,
-			IDataStorage link) throws FileFormatException, IOException {
-		this.parent = link;
+	public void init(CommonReader reader, IDataStorage prev,
+			String guid, byte[] controlData, Map<String, byte[]> data) throws FileFormatException, IOException {
+		this.parent = prev;
 		processControlData(controlData);
 
 		if (!data.containsKey(RESET_TABLE)) {
