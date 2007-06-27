@@ -189,7 +189,7 @@ public final class MsSHA1 extends MessageDigestSpi implements Cloneable {
 		if (bPos != 0) {
 			int tempLen = (BLOCK_SIZE / 8) - bPos;
 
-			if (tempLen < len) {
+			if (tempLen > len) {
 				System.arraycopy(block, off, buffer, bPos, len);
 				return;
 			}
