@@ -1,10 +1,11 @@
-package lumag.chm;
+package lumag.util.lzx;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
+
 
 public class LZXTest {
 

@@ -6,8 +6,9 @@ import java.util.Map;
 
 import lumag.util.BasicReader;
 import lumag.util.FixedSizeCache;
+import lumag.util.lzx.LZXDecompressor;
 
-public class LZXCTransformation implements ITransformation {
+class LZXCTransformation implements ITransformation {
 
 	private static final String RESET_TABLE = "ResetTable";
 	private static final byte[] LZXC_SIGNATURE = new byte[]{'L', 'Z', 'X', 'C'};

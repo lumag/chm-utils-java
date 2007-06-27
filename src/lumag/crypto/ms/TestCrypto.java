@@ -1,4 +1,4 @@
-package lumag.chm;
+package lumag.crypto.ms;
 
 import java.io.RandomAccessFile;
 import java.security.Key;
@@ -9,11 +9,10 @@ import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
-import lumag.crypto.ms.MsAlgorithms;
 import lumag.util.CipherAdapter;
 
 
-public class Crypto {
+public class TestCrypto {
 	static {
 		Security.addProvider(new MsAlgorithms());
 	}

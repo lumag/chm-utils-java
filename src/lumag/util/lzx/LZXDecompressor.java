@@ -1,6 +1,8 @@
-package lumag.chm;
+package lumag.util.lzx;
 
 import java.util.Arrays;
+
+import lumag.chm.FileFormatException;
 
 public class LZXDecompressor {
 	private static final byte[] EXTRA_BITS = {

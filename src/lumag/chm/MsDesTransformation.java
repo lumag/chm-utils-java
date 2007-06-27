@@ -16,7 +16,7 @@ import javax.crypto.spec.SecretKeySpec;
 import lumag.crypto.ms.MsAlgorithms;
 import lumag.util.CipherAdapter;
 
-public class MsDesTransformation implements ITransformation {
+class MsDesTransformation implements ITransformation {
 	static {
 		Security.addProvider(new MsAlgorithms());
 	}
