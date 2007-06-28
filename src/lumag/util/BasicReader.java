@@ -20,7 +20,7 @@ public class BasicReader {
 	public BasicReader(final RandomAccessFile input) {
 		reader = new Reader() {
 			public void fill(int len) throws IOException {
-				if (data != null && offset + len < data.length) {
+				if (data != null && offset + len <= data.length) {
 					return;
 				}
 				int newLen = data == null ? 4096 : data.length;
