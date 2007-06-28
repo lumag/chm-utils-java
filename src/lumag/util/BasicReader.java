@@ -19,18 +19,33 @@ public class BasicReader {
 
 	public BasicReader(final RandomAccessFile input) {
 		reader = new Reader() {
-			public void fill(int len) throws IOException {
-				byte[] newData = new byte[len];
+			private int dataLength;
 
-				if (offset > 0 && offset < data.length) {
-					System.arraycopy(data, offset, newData, 0, data.length - offset);
-					input.readFully(newData, data.length - offset, len - (data.length - offset));
-				} else {
-					input.readFully(newData);
+			public void fill(int len) throws IOException {
+				if (data != null && offset + len < data.length) {
+					return;
 				}
-				
-				data = newData;
-				offset = 0;
+				int newLen = data == null ? 4096 : data.length;
+				while (newLen < len) {
+					newLen <<= 1;
+				}
+				byte[] newData = new byte[newLen];
+
+				int read;
+				if (data != null && offset < data.length) {
+					read = data.length - offset; 
+					System.arraycopy(data, offset, newData, 0, read);
+					read += input.read(newData, read, newLen - read);
+				} else {
+					read = input.read(newData);
+				}
+
+
+				if (read != newData.length) {
+					data = Arrays.copyOfRange(newData, 0, read);
+				} else {
+					data = newData;
+				}
 			}
 
 			public void seek(long pos) throws IOException {
