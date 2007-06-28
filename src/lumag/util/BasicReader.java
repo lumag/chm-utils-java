@@ -40,7 +40,7 @@ public class BasicReader {
 					throw new EOFException();
   				}
 
-
+				offset = 0;
 				if (read != newData.length) {
 					data = Arrays.copyOfRange(newData, 0, read);
 				} else {
