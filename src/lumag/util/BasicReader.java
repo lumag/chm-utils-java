@@ -11,6 +11,7 @@ public class BasicReader {
 		void fill(int len) throws IOException;
 		void seek(long pos) throws IOException;
 		long offset() throws IOException;
+		boolean eof() throws IOException;
 	}
 
 	private final Reader reader;
@@ -61,6 +62,10 @@ public class BasicReader {
 				}
 				return input.getFilePointer() - off; 
 			}
+
+			public boolean eof() throws IOException {
+				return offset() == input.length();
+			}
 		};
 	}
 
@@ -83,6 +88,10 @@ public class BasicReader {
 
 			public long offset() throws IOException {
 				return BasicReader.this.offset;
+			}
+
+			public boolean eof() throws IOException {
+				return BasicReader.this.offset >= BasicReader.this.data.length;
 			}
 			
 		};
@@ -238,5 +247,9 @@ public class BasicReader {
 
 	public long getOffset() throws IOException {
 		return reader.offset();
+	}
+	
+	public boolean isEOF() throws IOException {
+		return reader.eof();
 	}
 }
