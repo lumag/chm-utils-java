@@ -1,16 +1,16 @@
 package lumag.chm.lithtml;
 
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.ATTR_CUSTOM;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.ATTR_CUSTOM_LEN;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.ATTR_NAME;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.ATTR_VALUE;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.ATTR_VALUE_LEN;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.ATTR_VALUE_NUMBER;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.FLAG;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.TAG_CUSTOM;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.TAG_CUSTOM_LEN;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.TAG_NAME;
-import static lumag.chm.lithtml.HtmlDecoder.DecodingState.TEXT;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.ATTR_CUSTOM;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.ATTR_CUSTOM_LEN;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.ATTR_NAME;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.ATTR_VALUE;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.ATTR_VALUE_LEN;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.ATTR_VALUE_NUMBER;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.FLAG;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.TAG_CUSTOM;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.TAG_CUSTOM_LEN;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.TAG_NAME;
+import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.TEXT;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -21,7 +21,7 @@ import java.util.Map;
 
 import lumag.util.BasicReader;
 
-public class HtmlDecoder {
+public class LitXMLDecoder {
 	enum DecodingState {
 		TEXT,
 		FLAG,
@@ -48,7 +48,7 @@ public class HtmlDecoder {
 	private final BasicReader reader;
 	private final Appendable output;
 
-	public HtmlDecoder(String filename, Appendable output) throws IOException {
+	public LitXMLDecoder(String filename, Appendable output) throws IOException {
 		reader = new BasicReader(new RandomAccessFile(filename, "r"));
 		this.output = output;
 	}
@@ -236,7 +236,7 @@ public class HtmlDecoder {
 	}
 
 	public static void main(String[] args) throws Exception {
-		new HtmlDecoder(args[0], System.out).decode();
+		new LitXMLDecoder(args[0], System.out).decode();
 	}
 
 }
