@@ -3,7 +3,10 @@
  */
 package lumag.chm.lithtml;
 
-enum MetaTags {
+import java.util.HashMap;
+import java.util.Map;
+
+enum MetaTags implements ITag {
 	__UNK,
 	PACKAGE,
 	DC_TITLE("dc:Title"),
@@ -49,6 +52,38 @@ enum MetaTags {
 	;
 	
 	private String text;
+	private static final Map<Integer, String> commonAttributes;
+	private static final String[] atts = {
+		null,
+		"href",
+		"never-used",
+		"guid",
+		"minimum_level",
+		"attr5", // FIXME
+		"id",
+		"href",
+		"media-type",
+		"fallback",
+		"idref",
+		"xmlns:dc",
+		"xmlns:oebpackage",
+		"role",
+		"file-as",
+		"event",
+		"scheme",
+		"title",
+		"type",
+		"unique-identifier",
+		"name",
+		"content",
+		"xml:lang",
+	};
+	static {
+		commonAttributes = new HashMap<Integer, String>();
+		for (int i = 0; i < atts.length; i++) {
+			commonAttributes.put(i, atts[i]);
+		}
+	}
 
 	MetaTags(String s) {
 		text = s;
@@ -61,5 +96,14 @@ enum MetaTags {
 	@Override
 	public String toString() {
 		return text;
+	}
+
+	public Map<Integer, String> getCommonAttributes() {
+		return commonAttributes;
+	}
+
+	public Map<Integer, String> getAttributes() {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

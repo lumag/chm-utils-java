@@ -25,7 +25,6 @@ class MsDesTransformation implements ITransformation {
 	private IDataStorage prev;
 
 
-	@Override
 	public void init(CommonReader reader, IDataStorage parent,
 			String guid, byte[] controlData, Map<String, byte[]> data) throws FileFormatException, IOException {
 
@@ -87,7 +86,6 @@ class MsDesTransformation implements ITransformation {
 		return btempkey;
 	}
 
-	@Override
 	public byte[] getData(long offset, int length) throws FileFormatException {
 		long dataOffset = offset &~7;
 		int dataLength = (length + (int) (offset - dataOffset) + 7) &~7;
