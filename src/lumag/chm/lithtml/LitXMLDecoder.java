@@ -13,7 +13,6 @@ import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.TAG_NAME;
 import static lumag.chm.lithtml.LitXMLDecoder.DecodingState.TEXT;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedHashMap;
@@ -21,7 +20,15 @@ import java.util.Map;
 
 import lumag.util.BasicReader;
 
+import org.xml.sax.ContentHandler;
+import org.xml.sax.SAXException;
+import org.xml.sax.helpers.AttributesImpl;
+
 public class LitXMLDecoder {
+	public enum LitXMLType {
+		META,
+		HTML,
+	}
 	enum DecodingState {
 		TEXT,
 		FLAG,
@@ -35,6 +42,25 @@ public class LitXMLDecoder {
 		ATTR_VALUE,
 		ATTR_VALUE_NUMBER,
 	}
+	
+	private static class CustomTag implements ITag {
+		private String name;
+
+		CustomTag(String s) {
+			this.name = s;
+		}
+
+		public String getAttribute(int num) {
+			return null;
+		}
+
+		@Override
+		public String toString() {
+			return name;
+		}
+		
+		
+	}
 
 	@SuppressWarnings("unused")
 	private static final int FLAGS_OPEN = 0x01;
@@ -45,18 +71,10 @@ public class LitXMLDecoder {
 	@SuppressWarnings("unused")
 	private static final int FLAGS_HEAD = 0x08;
 
-	private final BasicReader reader;
-	private final Appendable output;
-
-	public LitXMLDecoder(String filename, Appendable output) throws IOException {
-		reader = new BasicReader(new RandomAccessFile(filename, "r"));
-		this.output = output;
-	}
-
 	@SuppressWarnings("null")
-	public void decode() throws IOException {
+	public void decode(BasicReader reader, LitXMLType type, ContentHandler handler) throws IOException, SAXException {
 		int flags = 0;
-		Deque<String> tagStack = new ArrayDeque<String>();
+		Deque<ITag> tagStack = new ArrayDeque<ITag>();
 		String attributeName = null;
 		int val_len = 0;
 
@@ -65,22 +83,33 @@ public class LitXMLDecoder {
 		
 		Map<String, String> attributes = null;
 
-		ITag[] tags = HtmlTags.values();
-		Map<Integer, String> attrMap = tags[0].getCommonAttributes();
-		Map<Integer, String> tagAttrMap = null;
+		ITag[] tags = null;
+		switch (type) {
+		case HTML:
+			tags = HtmlTags.values();
+			break;
+		case META:
+			tags = MetaTags.values();
+			break;
+		default:
+			throw new InternalError("Unhandled LitXML type: " + type);
+		}
 
-		while (true) {
+		handler.startDocument();
+
+		while (!reader.isEOF()) {
 			int ucs32 = reader.readUtf8Char();
 //			System.err.format("%16s: %d%n", state, ucs32);
 
 			switch (state) {
 			default:
-				throw new IllegalStateException("State is unsupported: " + state);
+				throw new InternalError("Unhandled state: " + state);
 			case TEXT:
 				if (ucs32 == 0) {
 					if (builder.length() != 0) {
-						output.append(builder.toString());
 //						System.err.format("Text: '%s'%n", builder.toString());
+						char[] ch = builder.toString().toCharArray();
+						handler.characters(ch, 0, ch.length);
 					}
 					builder = null;
 					state = FLAG;
@@ -113,16 +142,14 @@ public class LitXMLDecoder {
 				break;
 			case TAG_NAME:
 				if (ucs32 == 0) {
-					output.append("</");
-					output.append(tagStack.pop());
-					output.append('>');
+					handler.endElement("", "", tagStack.pop().toString());
 
 					state = TEXT;
 					builder = new StringBuilder();
 				} else if (ucs32 == 0x8000){
 					state = TAG_CUSTOM_LEN; 
 				} else {
-					tagStack.push(tags[ucs32].toString());
+					tagStack.push(tags[ucs32]);
 //					System.err.format("Tag: %s%n", tagStack.peek());
 					attributes = new LinkedHashMap<String, String>();
 					state = ATTR_NAME;
@@ -138,7 +165,7 @@ public class LitXMLDecoder {
 				builder.append(Character.toChars(ucs32));
 				val_len --;
 				if (val_len == 0) {
-					tagStack.push(builder.toString());
+					tagStack.push(new CustomTag(builder.toString()));
 					builder = null;
 //					System.err.format("Tag: %s%n", tagStack.peek());
 					attributes = new LinkedHashMap<String, String>();
@@ -147,39 +174,27 @@ public class LitXMLDecoder {
 				break;
 			case ATTR_NAME:
 				if (ucs32 == 0) {
-					output.append('<');
-					output.append(tagStack.peek());
+					AttributesImpl atts = new AttributesImpl();
 					for (Map.Entry<String, String> a: attributes.entrySet()) {
-						output.append(' ');
-						output.append(a.getKey());
-						output.append("=\"");
-						output.append(a.getValue());
-						output.append('"');
+						atts.addAttribute("", "", a.getKey(), "CDATA", a.getValue());
 					}
 					attributes  = null;
+					handler.startElement("", "", tagStack.peek().toString(), atts);
 					if ((flags & FLAGS_CLOSE) != 0) {
-						output.append(" /");
-						tagStack.pop();
+						handler.endElement("", "", tagStack.pop().toString());
 					}
-					output.append(">");
 					state = TEXT;
 					builder = new StringBuilder();
 				} else if (ucs32 == 0x8000){
 					state = ATTR_CUSTOM_LEN;
 				} else {
-					if (tagAttrMap != null) {
-						attributeName = tagAttrMap.get(ucs32);
-					}
-
-					if (attributeName == null) {
-						attributeName = attrMap.get(ucs32);						
-					}
+//					System.err.format("Attr: %s %x%n", tag, ucs32);
+					attributeName = tagStack.peek().getAttribute(ucs32);
 
 					if (attributeName == null) {
 						System.err.println("Warning: for tag '" + tagStack.peek() + "' unknown attribute " + Integer.toHexString(ucs32));
 						attributeName = "_0x" + Integer.toHexString(ucs32) + "_";
 					}
-//					System.err.format("Attr: %s %x%n", tag, ucs32);
 					state = ATTR_VALUE_LEN;
 				}
 				break;
@@ -233,10 +248,6 @@ public class LitXMLDecoder {
 				break;
 			}
 		}
-	}
-
-	public static void main(String[] args) throws Exception {
-		new LitXMLDecoder(args[0], System.out).decode();
 	}
 
 }

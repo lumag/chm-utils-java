@@ -98,12 +98,9 @@ enum MetaTags implements ITag {
 		return text;
 	}
 
-	public Map<Integer, String> getCommonAttributes() {
-		return commonAttributes;
+	public String getAttribute(int num) {
+		// FIXME: implement per-tag attributes
+		return commonAttributes.get(num);
 	}
 
-	public Map<Integer, String> getAttributes() {
-		// TODO Auto-generated method stub
-		return null;
-	}
 }

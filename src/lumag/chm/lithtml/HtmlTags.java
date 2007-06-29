@@ -258,11 +258,9 @@ enum HtmlTags implements ITag {
 		return name().toLowerCase();
 	}
 
-	public Map<Integer, String> getCommonAttributes() {
-		return commonAttributes;
+	public String getAttribute(int num) {
+		return commonAttributes.get(num);
 	}
 
-	public Map<Integer, String> getAttributes() {
-		return null;
-	}
+
 }
