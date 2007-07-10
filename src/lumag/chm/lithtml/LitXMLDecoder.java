@@ -26,8 +26,19 @@ import org.xml.sax.helpers.AttributesImpl;
 
 public class LitXMLDecoder {
 	public enum LitXMLType {
-		META,
-		HTML,
+		META{
+			ITag[] getTags() {
+				return MetaTags.values();
+			}
+		},
+		HTML{
+			ITag[] getTags() {
+				return HtmlTags.values();
+			}
+		},
+
+		;
+		abstract ITag[] getTags();
 	}
 	enum DecodingState {
 		TEXT,
@@ -83,17 +94,7 @@ public class LitXMLDecoder {
 		
 		Map<String, String> attributes = null;
 
-		ITag[] tags = null;
-		switch (type) {
-		case HTML:
-			tags = HtmlTags.values();
-			break;
-		case META:
-			tags = MetaTags.values();
-			break;
-		default:
-			throw new InternalError("Unhandled LitXML type: " + type);
-		}
+		ITag[] tags = type.getTags();
 
 		handler.startDocument();
 
@@ -235,6 +236,9 @@ public class LitXMLDecoder {
 					String value = builder.toString();
 					builder = null;
 					attributes.put(attributeName, value);
+					if (attributeName.charAt(0) == '_') {
+						System.err.format("For unkwown attribute value = '%s'%n", value);
+					}
 					attributeName = null;
 //					System.err.format("AttrVal: %s%n", value);
 					state = ATTR_NAME;
@@ -243,6 +247,9 @@ public class LitXMLDecoder {
 			case ATTR_VALUE_NUMBER:
 //				System.err.format("AttrVal: %x%n", ucs32);
 				attributes.put(attributeName, Integer.toString(ucs32));
+				if (attributeName.charAt(0) == '_') {
+					System.err.format("For unkwown attribute value = '%s'%n", ucs32);
+				}
 				attributeName = null;
 				state = ATTR_NAME;
 				break;
