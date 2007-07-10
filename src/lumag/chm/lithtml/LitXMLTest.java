@@ -23,7 +23,13 @@ public class LitXMLTest extends DefaultHandler {
 	}
 
 	public static void main(String[] args) throws Exception {
-		BasicReader reader = new BasicReader(new RandomAccessFile(args[0], "r"));
+		BasicReader reader;
+		reader = new BasicReader(new RandomAccessFile("test_lit/manifest", "r"));
+		new Manifest(reader);
+		
+		reader.close();
+
+		reader = new BasicReader(new RandomAccessFile(args[0], "r"));
 		Writer outputStream = new BufferedWriter(new FileWriter(args[1]));
 		LitXMLDecoder decoder = new LitXMLDecoder();
 		try {
