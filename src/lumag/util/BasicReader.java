@@ -157,15 +157,20 @@ public class BasicReader {
 		fill(len);
 
 		StringBuilder builder = new StringBuilder();
-		for (int i = 0; i < len; i++) {
-			int ucs32 = readUtf8Char();
+		int read[] = new int[1];
+		for (int i = 0; i < len; ) {
+			int ucs32 = readUtf8Char(read);
 			builder.append(Character.toChars(ucs32));
+			i += read[0];
 		}
 		String str = builder.toString();
 		return str;
 	}
 
 	public int readUtf8Char() throws IOException {
+		return readUtf8Char(null);
+	}
+	public int readUtf8Char(int[] read) throws IOException {
 		int ucs32 = 0;
 
 		int left;
@@ -192,6 +197,9 @@ public class BasicReader {
 			ucs32 = c & 0x01;
 		} else {
 			throw new IllegalArgumentException("Bad UTF-8 String!!!");
+		}
+		if (read != null) {
+			read[0] = left + 1;
 		}
 
 		for (; left > 0; left --) {
