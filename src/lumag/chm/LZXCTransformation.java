@@ -77,6 +77,7 @@ class LZXCTransformation implements ITransformation {
 		}
 		resetBlockInterval = resetInterval / (windowSize / 2) * cacheSize;
 		System.out.println("ResetBlockInterval: " + resetBlockInterval);
+		reader.close();
 	}
 	
 	private void processResetTable(byte[] data) throws FileFormatException, IOException {
@@ -120,6 +121,7 @@ class LZXCTransformation implements ITransformation {
 		for (int i = 0; i < resetNum; i++) {
 			resets[i] = reader.readQWord();
 		}
+		reader.close();
 	}
 
 	private byte[] getBlock(int blockNo) throws FileFormatException {

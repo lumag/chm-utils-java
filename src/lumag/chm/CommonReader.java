@@ -296,6 +296,8 @@ abstract class CommonReader {
 				cnt.storage = transform;
 				
 			}
+			trRreader.close();
+			cdReader.close();
 
 		}
 	}
