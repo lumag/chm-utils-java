@@ -193,7 +193,7 @@ public class LitXMLDecoder {
 					attributeName = tagStack.peek().getAttribute(ucs32);
 
 					if (attributeName == null) {
-						System.err.println("Warning: for tag '" + tagStack.peek() + "' unknown attribute " + Integer.toHexString(ucs32));
+//						System.err.println("Warning: for tag '" + tagStack.peek() + "' unknown attribute " + Integer.toHexString(ucs32));
 						attributeName = "_0x" + Integer.toHexString(ucs32) + "_";
 					}
 					state = ATTR_VALUE_LEN;
@@ -237,7 +237,10 @@ public class LitXMLDecoder {
 					builder = null;
 					attributes.put(attributeName, value);
 					if (attributeName.charAt(0) == '_') {
-						System.err.format("For unkwown attribute value = '%s'%n", value);
+						System.err.format("Tag '%s' unknown attribute '%s' value '%s'%n",
+								tagStack.peek(),
+								attributeName.substring(1, attributeName.length() - 1),
+								value);
 					}
 					attributeName = null;
 //					System.err.format("AttrVal: %s%n", value);
@@ -248,7 +251,10 @@ public class LitXMLDecoder {
 //				System.err.format("AttrVal: %x%n", ucs32);
 				attributes.put(attributeName, Integer.toString(ucs32));
 				if (attributeName.charAt(0) == '_') {
-					System.err.format("For unkwown attribute value = '%s'%n", ucs32);
+					System.err.format("Tag '%s' unknown attribute '%s' value '%d'%n",
+							tagStack.peek(),
+							attributeName.substring(1, attributeName.length() - 1),
+							ucs32);
 				}
 				attributeName = null;
 				state = ATTR_NAME;
