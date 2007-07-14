@@ -1,6 +1,7 @@
 package lumag.chm.lithtml;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -25,18 +26,26 @@ public class LitXMLTest extends DefaultHandler {
 	public static void main(String[] args) throws Exception {
 		BasicReader reader;
 		reader = new BasicReader(new RandomAccessFile("test_lit/manifest", "r"));
-		new Manifest(reader);
-		
+		Manifest manifest = new Manifest(reader);
 		reader.close();
 
-		reader = new BasicReader(new RandomAccessFile(args[0], "r"));
-		Writer outputStream = new BufferedWriter(new FileWriter(args[1]));
+		String file = args[0];
+
+		String out = manifest.find(file);
+		if (out == null) {
+			out = "test.html";
+		}
+		System.out.format("Decoding %s to %s%n", file, out);
+		reader = new BasicReader(new RandomAccessFile("test_lit/data/" + file + "/content" , "r"));
+		new File("out").mkdir();
+		Writer outputStream = new BufferedWriter(new FileWriter("out/" + out));
 		LitXMLDecoder decoder = new LitXMLDecoder();
 		try {
 			decoder.decode(reader, LitXMLType.HTML, new LitXMLTest(outputStream));
 		} finally {
 			outputStream.close();
 		}
+		reader.close();
 	}
 
 	@Override
