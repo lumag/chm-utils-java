@@ -1,6 +1,7 @@
 package lumag.util.lzx;
 
 import java.util.Arrays;
+import java.util.Formatter;
 
 import lumag.chm.FileFormatException;
 
@@ -112,8 +113,12 @@ public class LZXDecompressor {
 
 		ensureBits(n);
 		
-		if (inPos > inputLength) {
-			throw new FileFormatException("Input buffer overrun");
+		if (inPos - (bblen - n) / 8> inputLength) {
+			Formatter fmt = new Formatter();
+			fmt.format("Input buffer overrun: %d:%d @ %d %d", n, bblen, inPos, inputLength);
+			String msg = fmt.toString();
+			fmt.close();
+			throw new FileFormatException(msg);
 		}
 
 		long res = peekBits(n);

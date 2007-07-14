@@ -75,7 +75,8 @@ class LZXCTransformation implements ITransformation {
 			resetInterval *= 0x8000;
 			windowSize *= 0x8000;
 		}
-		resetBlockInterval = resetInterval / (windowSize / 2) * cacheSize;
+//		resetBlockInterval = resetInterval / (windowSize / 2) * cacheSize;
+		resetBlockInterval = resetInterval/0x8000;
 		System.out.println("ResetBlockInterval: " + resetBlockInterval);
 		reader.close();
 	}
