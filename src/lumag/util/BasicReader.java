@@ -174,6 +174,23 @@ public class BasicReader {
 		String str = builder.toString();
 		return str;
 	}
+	
+	public String readLongString() throws IOException {
+		int len = (int) readCWord();
+		if (len < 0) {
+			throw new IllegalArgumentException("Incorrect string length");
+		}
+
+		fill(len);
+
+		StringBuilder builder = new StringBuilder();
+		for (int i = 0; i < len; i++) {
+			int ucs32 = readUtf8Char();
+			builder.append(Character.toChars(ucs32));
+		}
+		String str = builder.toString();
+		return str;
+	}
 
 	public int readUtf8Char() throws IOException {
 		return readUtf8Char(null);
