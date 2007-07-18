@@ -13,7 +13,8 @@ enum HtmlTags implements ITag {
 	__UNK1,
 	__UNK2,
 	A(
-		0x0001, "href"),
+			0x0001, "href",
+			0x8001, "name"),
 	ACRONYM,
 	ADDRESS,
 	APPLET,
@@ -27,9 +28,12 @@ enum HtmlTags implements ITag {
 	BLINK,
 	BLOCKQUOTE,
 	BODY(
-		0x07db, "link",
-		0x07dd, "vlink",
-		0x9392, "lang"),
+			0x07db, "link",
+			0x07dc, "alink",
+			0x07dd, "vlink",
+			0x938b, "text",
+			0x9392, "lang",
+			0xfe0c, "bgcolor"),
 	BR,
 	BUTTON,
 	CAPTION,
@@ -45,42 +49,44 @@ enum HtmlTags implements ITag {
 	DFN,
 	DIR,
 	DIV(
-		0x804b, "style",
-		0x83ea, "class",
-		0x83eb, "id"),
+			0x804b, "style",
+			0x83ea, "class"),
 	DL,
 	DT,
 	EM,
 	EMBED,
 	FIELDSET,
-	FONT,
+	FONT(
+			0x938b, "color",
+			0x939b, "face",
+			0x939c, "size"),
 	FORM,
 	FRAME,
 	FRAMESET,
 	__UNK41,
 	H1(
-		0x8049, "align",
-		0x83eb, "id"),
-	H2(
-		0x83eb, "id"),
+			0x8049, "align"),
+	H2,
 	H3,
 	H4,
 	H5,
 	H6,
 	HEAD,
 	HR(
-		0x8006, "width"),
-	HTML(
-		0x83eb, "id"),
+			// 0x03ea, // value 2
+			0x8006, "width",
+			0x8007, "size",
+			0x8049, "align"),
+	HTML,
 	I,
 	IFRAME,
 	IMG(
-		0x03ec, "src",
-		0x03ed, "border",
-		0x03ef, "hspace",
-		0x8006, "width",
-		0x8007, "height",
-		0x804a, "align"),
+			0x03ec, "src",
+			0x03ed, "border",
+			0x03ef, "hspace",
+			0x8006, "width",
+			0x8007, "height",
+			0x804a, "align"),
 	INPUT,
 	INS,
 	KBD,
@@ -88,17 +94,17 @@ enum HtmlTags implements ITag {
 	LEGEND,
 	LI,
 	LINK(
-		0x03ee, "href",
-		0x03ef, "rel",
-		0x03f1, "type"),
+			0x03ee, "href",
+			0x03ef, "rel",
+			0x03f1, "type"),
 	LISTING,
 	MAP,
 	MARQUEE,
 	MENU,
 	META(
-		0x03ea, "http-equiv",
-		0x03eb, "content",
-		0x8001, "name"),
+			0x03ea, "http-equiv",
+			0x03eb, "content",
+			0x8001, "name"),
 	NEXTID,
 	NOBR,
 	NOEMBED,
@@ -108,9 +114,9 @@ enum HtmlTags implements ITag {
 	OL,
 	OPTION,
 	P(
-		0x8049, "align",
-		0x804b, "style",
-		0x83ea, "class"),
+			0x8049, "align",
+			0x804b, "style",
+			0x83ea, "class"),
 	PARAM,
 	PLAINTEXT,
 	PRE,
@@ -124,18 +130,24 @@ enum HtmlTags implements ITag {
 	SELECT,
 	SMALL,
 	SPAN(
-		0x804b, "style",
-		0x83ea, "class",
-		0x9392, "lang"),
+			0x804b, "style",
+			0x83ea, "class",
+			0x9392, "lang"),
 	STRIKE,
 	STRONG,
 	STYLE,
 	SUB,
 	SUP,
-	TABLE,
+	TABLE(
+			0x03eb, "border",
+			0x03ee, "cellspacing",
+			0x03ef, "cellpadding",
+			0x8006, "width"),
 	TBODY,
 	TC,
-	TD,
+	TD(
+			0x8006, "width",
+			0x8007, "height"),
 	TEXTAREA,
 	TFOOT,
 	TH,
@@ -149,9 +161,10 @@ enum HtmlTags implements ITag {
 	WBR,
 	;
 	
-//	private static final Map<Integer, String> commonAttributes;
-//	static {
-//		commonAttributes = new HashMap<Integer, String>();
+	private static boolean checked = false;
+	private static final Map<Integer, String> commonAttributes;
+	static {
+		commonAttributes = new HashMap<Integer, String>();
 //		commonAttributes.put(0x0001, "href");
 //
 //		commonAttributes.put(0x8001, "name");
@@ -165,7 +178,7 @@ enum HtmlTags implements ITag {
 //		commonAttributes.put(0x804d, "disabled");
 //
 //		commonAttributes.put(0x83ea, "class");
-//		commonAttributes.put(0x83eb, "id");
+		commonAttributes.put(0x83eb, "id");
 //		commonAttributes.put(0x83fe, "datafld");
 //		commonAttributes.put(0x83ff, "datasrc");
 //
@@ -283,28 +296,52 @@ enum HtmlTags implements ITag {
 //		// 0x97b7 -- ...
 //
 //		commonAttributes.put(0xfe0c, "bgcolor");
-//	}
+	}
 	
+	private static void checkOverwrites() {
+		if (checked) {
+			return;
+		}
+
+		for (HtmlTags t: values()) {
+			for (Map.Entry<Integer, String> en: t.attributes.entrySet()) {
+				Integer key = en.getKey();
+				if (commonAttributes.containsKey(key)) {
+					System.err.format("Warning: for tag '%s' attribute %04x overwrites common one: %s -> %s%n",
+							t.toString(),
+							key,
+							commonAttributes.get(key),
+							t.attributes.get(key));
+				}
+			}
+		}
+		checked = true;
+	}
+
 	private final Map<Integer, String> attributes = new HashMap<Integer, String>();
+
 	private HtmlTags(Object... attrs) {
 		if (attrs.length % 2 != 0) {
 			throw new InternalError("Bad arguments array: " + Arrays.toString(attrs));
 		}
-		
+
 		for (int i = 0; i < attrs.length; i+= 2) {
 			attributes.put((Integer) attrs[i], (String) attrs[i+1]);
 		}
 	}
-
+	
 	@Override
 	public String toString() {
 		return name().toLowerCase();
 	}
 
 	public String getAttribute(int num) {
-		return attributes.get(num);
-//		return commonAttributes.get(num);
+		checkOverwrites();
+
+		if (attributes.containsKey(num)){
+			return attributes.get(num);
+		}
+
+		return commonAttributes.get(num);
 	}
-
-
 }
