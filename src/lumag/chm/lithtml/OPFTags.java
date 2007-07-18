@@ -6,7 +6,7 @@ package lumag.chm.lithtml;
 import java.util.HashMap;
 import java.util.Map;
 
-enum MetaTags implements ITag {
+enum OPFTags implements ITag {
 	__UNK,
 	PACKAGE,
 	DC_TITLE("dc:Title"),
@@ -85,11 +85,11 @@ enum MetaTags implements ITag {
 		}
 	}
 
-	MetaTags(String s) {
+	OPFTags(String s) {
 		text = s;
 	}
 
-	MetaTags() {
+	OPFTags() {
 		text = this.name().toLowerCase();
 	}
 	
@@ -99,7 +99,6 @@ enum MetaTags implements ITag {
 	}
 
 	public String getAttribute(int num) {
-		// FIXME: implement per-tag attributes
 		return commonAttributes.get(num);
 	}
 

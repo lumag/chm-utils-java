@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.Writer;
 
-import lumag.chm.lithtml.LitXMLDecoder.LitXMLType;
 import lumag.util.BasicReader;
 
 import org.xml.sax.Attributes;
@@ -36,12 +35,22 @@ public class LitXMLTest extends DefaultHandler {
 			out = "test.html";
 		}
 		System.out.format("Decoding %s to %s%n", file, out);
-		reader = new BasicReader(new RandomAccessFile("test_lit/data/" + file + "/content" , "r"));
+
+		String name;
+
+		LitXMLDecoder decoder;
+		if (file.equals("meta")) {
+			name = "test_lit/meta";
+			decoder = new OPFDecoder();
+		} else {
+			name = "test_lit/data/" + file + "/content";
+			decoder = new HTMLDecoder();
+		}
+		reader = new BasicReader(new RandomAccessFile(name , "r"));
 		new File("out").mkdir();
 		Writer outputStream = new BufferedWriter(new FileWriter("out/" + out));
-		LitXMLDecoder decoder = new LitXMLDecoder();
 		try {
-			decoder.decode(reader, LitXMLType.HTML, new LitXMLTest(outputStream));
+			decoder.decode(reader, new LitXMLTest(outputStream));
 		} finally {
 			outputStream.close();
 		}
